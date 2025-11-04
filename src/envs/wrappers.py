@@ -147,6 +147,35 @@ class TimeLimit(gym.Wrapper):
     def reset(self, **kwargs):
         self._elapsed_steps = 0
         return self.env.reset(**kwargs)
+    
+
+class StepAPICompat(gym.Wrapper):
+    """
+    Normaliza la API:
+      - step(): (obs, reward, done, info) -> (obs, reward, terminated, truncated, info)
+      - reset(): obs -> (obs, {})
+    Útil cuando el env subyacente usa la firma 'vieja' (p.ej., ALE).
+    """
+    def step(self, action):
+        out = self.env.step(action)
+        # Firma vieja: 4 elementos
+        if isinstance(out, (tuple, list)) and len(out) == 4:
+            obs, reward, done, info = out
+            # Si el corte fue por límite de tiempo, muchos envs ponen un flag en info:
+            truncated = bool(info.get("TimeLimit.truncated", False))
+            # Si fue truncado por tiempo, no es 'terminated' por condición terminal del entorno:
+            terminated = bool(done) and not truncated
+            return obs, reward, terminated, truncated, info
+        # Firma nueva: ya son 5
+        return out
+
+    def reset(self, **kwargs):
+        res = self.env.reset(**kwargs)
+        # Firma vieja: sólo obs
+        if not (isinstance(res, (tuple, list)) and len(res) == 2):
+            return res, {}
+        return res
+
 
 
 class PreprocessObs(gym.ObservationWrapper):
@@ -217,6 +246,8 @@ def make_env(
 ):
     """Create an environment and chain common wrappers for PPO training."""
     env = gym.make(env_id, **kwargs)
+
+    env = StepAPICompat(env)
 
     if seed is not None:
         try:
