@@ -29,13 +29,9 @@ from . import preprocess
 
 def _unpack_step(result):
     """Handle both Gym and Gymnasium step() signatures."""
-    if len(result) == 4:
-        obs, reward, done, info = result
-        return obs, reward, bool(done), info
-    elif len(result) == 5:
+    if len(result) == 5:
         obs, reward, terminated, truncated, info = result
-        done = bool(terminated or truncated)
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
     else:
         raise RuntimeError("Unexpected env.step() return signature")
 
@@ -54,11 +50,11 @@ class ActionRepeat(gym.Wrapper):
         info = {}
         for _ in range(self.repeat):
             result = self.env.step(action)
-            obs, reward, done, info = _unpack_step(result)
+            obs, reward, terminated, truncated, info = _unpack_step(result)
             total_reward += reward
-            if done:
-                return obs, total_reward, done, info
-        return obs, total_reward, False, info
+            if terminated or truncated:
+                return obs, total_reward, terminated, truncated, info
+        return obs, total_reward, terminated, truncated, info
 
 
 class FrameStack(gym.ObservationWrapper):
@@ -136,18 +132,18 @@ class TimeLimit(gym.Wrapper):
         self._elapsed_steps = 0
 
     def step(self, action):
-        obs, reward, done, info = _unpack_step(self.env.step(action))
+        obs, reward, terminated, truncated, info = _unpack_step(self.env.step(action))
         self._elapsed_steps += 1
         if self._elapsed_steps >= self._max_episode_steps:
             done = True
             info = dict(info)
             info["TimeLimit.truncated"] = True
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def reset(self, **kwargs):
         self._elapsed_steps = 0
         return self.env.reset(**kwargs)
-    
+
 
 class StepAPICompat(gym.Wrapper):
     """
@@ -175,7 +171,6 @@ class StepAPICompat(gym.Wrapper):
         if not (isinstance(res, (tuple, list)) and len(res) == 2):
             return res, {}
         return res
-
 
 
 class PreprocessObs(gym.ObservationWrapper):
