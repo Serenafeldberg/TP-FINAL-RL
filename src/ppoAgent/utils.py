@@ -7,14 +7,27 @@ from pathlib import Path
 import json
 from datetime import datetime
 
+import torch as th
+
+def set_seed(seed: int):
+    random.seed(seed); np.random.seed(seed); th.manual_seed(seed)
+    if th.cuda.is_available():
+        th.cuda.manual_seed_all(seed)
+
+def linear_lr(opt, frac: float):
+    """frac en [0,1] — 1 al inicio, 0 al final."""
+    for pg in opt.param_groups:
+        base = pg.get("initial_lr", pg["lr"])
+        pg["lr"] = base * max(0.0, min(1.0, frac))
 
 #REPRODUCIBILIDAD
-def set_seed(seed: int) -> None:
+def set_seed(seed: int, deterministic: bool = False) -> None:
     """
     Setea la seed para reproducibilidad en todos los frameworks.
     
     Args:
         seed: Seed para random, numpy, torch, etc.
+        deterministic: Si True, activa modo determinístico completo (más lento)
     """
     random.seed(seed)
     np.random.seed(seed)
@@ -22,9 +35,10 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     
-    # Para determinismo completo (puede ser más lento)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    if deterministic:
+        # Para determinismo completo (puede ser más lento)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     
     print(f"✓ Random seed set to {seed}")
 
@@ -151,7 +165,7 @@ def compute_episode_stats(episode_rewards: List[float]) -> Dict[str, float]:
     }
 
 
-def compute_explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> float:
+def explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> float:
     """
     Calcula la varianza explicada: 1 - Var[y_true - y_pred] / Var[y_true]
     
@@ -175,6 +189,11 @@ def compute_explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> float:
         return np.nan
     
     return 1.0 - np.var(y_true - y_pred) / var_y
+
+
+# Alias para compatibilidad
+compute_explained_variance = explained_variance
+
 
 # ANNEALING Y SCHEDULING
 
@@ -212,6 +231,27 @@ def linear_anneal(
     
     fraction = step / total_steps
     return start_value + fraction * (end_value - start_value)
+
+
+def linear_schedule(initial_value: float, final_value: float = 0.0):
+    """
+    Crear un scheduler lineal para learning rate.
+    
+    Args:
+        initial_value: valor inicial
+        final_value: valor final
+    
+    Returns:
+        función que toma progress (0 a 1) y devuelve el valor interpolado
+    """
+    def func(progress: float) -> float:
+        """
+        Args:
+            progress: float en [0, 1], donde 0 = inicio, 1 = final
+        """
+        return final_value + (initial_value - final_value) * (1 - progress)
+    
+    return func
 
 
 # DEVICE MANAGEMENT
@@ -274,24 +314,17 @@ def clip_grad_norm(
     error_if_nonfinite: bool = False
 ) -> float:
     """
-    Wrapper sobre torch.nn.utils.clip_grad_norm_ con mejor interfaz.
-    
-    Clipea los gradientes para prevenir explosión.
+    Clipea el norm del gradiente de un iterable de parámetros.
+    Wrapper sobre torch.nn.utils.clip_grad_norm_.
     
     Args:
-        parameters: Parámetros del modelo (model.parameters())
-        max_norm: Norma máxima de los gradientes
-        norm_type: Tipo de norma (2.0 = L2 norm)
-        error_if_nonfinite: Si True, arroja error si hay NaN/Inf
+        parameters: Iterable de parámetros (e.g., model.parameters())
+        max_norm: Norm máximo
+        norm_type: Tipo de norm (default: 2.0 = L2)
+        error_if_nonfinite: Si lanzar error si hay gradientes inf/nan
     
     Returns:
-        Total norm de los gradientes antes del clipping
-    
-    Example:
-        >>> # En el training loop
-        >>> loss.backward()
-        >>> grad_norm = clip_grad_norm(model.parameters(), max_norm=0.5)
-        >>> optimizer.step()
+        Norm total del gradiente (antes del clipping)
     """
     return torch.nn.utils.clip_grad_norm_(
         parameters,
@@ -303,17 +336,16 @@ def clip_grad_norm(
 
 def get_grad_norm(parameters, norm_type: float = 2.0) -> float:
     """
-    Calcula la norma de los gradientes sin clipear.
-    Útil para logging/debugging.
+    Calcula el norm del gradiente sin clipear.
     
     Args:
-        parameters: Parámetros del modelo
-        norm_type: Tipo de norma
+        parameters: Iterable de parámetros
+        norm_type: Tipo de norm (default: 2.0 = L2)
     
     Returns:
-        Norma total de los gradientes
+        Norm del gradiente
     """
-    parameters = [p for p in parameters if p.grad is not None]
+    parameters = list(filter(lambda p: p.grad is not None, parameters))
     
     if len(parameters) == 0:
         return 0.0
@@ -321,17 +353,29 @@ def get_grad_norm(parameters, norm_type: float = 2.0) -> float:
     device = parameters[0].grad.device
     
     if norm_type == float('inf'):
-        total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
+        total_norm = max(p.grad.data.abs().max() for p in parameters)
     else:
         total_norm = torch.norm(
-            torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]),
+            torch.stack([torch.norm(p.grad.data, norm_type) for p in parameters]),
             norm_type
         )
     
     return total_norm.item()
 
 
-# CHECKPOINTS (GUARDAR/CARGAR MODELOS)
+def zero_grad(parameters) -> None:
+    """
+    Zero out gradients de parámetros.
+    
+    Args:
+        parameters: Iterable de parámetros
+    """
+    for param in parameters:
+        if param.grad is not None:
+            param.grad.zero_()
+
+
+# CHECKPOINT UTILITIES
 
 def save_checkpoint(
     model: torch.nn.Module,
@@ -503,6 +547,10 @@ def print_system_info() -> None:
     else:
         print(f"CUDA available: No (using CPU)")
     
+    # MPS (Apple Silicon)
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        print(f"MPS available: Yes (Apple Silicon)")
+    
     print("="*60 + "\n")
 
 # TESTING
@@ -536,14 +584,14 @@ def test_utils():
     assert "mean_reward" in stats
     print("   ✓ compute_episode_stats works")
     
-    # Test compute_explained_variance
-    print("\n4. Testing compute_explained_variance:")
+    # Test explained_variance
+    print("\n4. Testing explained_variance:")
     y_true = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     y_pred = np.array([1.1, 2.1, 2.9, 4.2, 4.8])
-    explained_var = compute_explained_variance(y_pred, y_true)
+    explained_var = explained_variance(y_pred, y_true)
     print(f"   Explained variance: {explained_var:.4f}")
     assert 0.0 <= explained_var <= 1.0
-    print("   ✓ compute_explained_variance works")
+    print("   ✓ explained_variance works")
     
     # Test linear_anneal
     print("\n5. Testing linear_anneal:")
