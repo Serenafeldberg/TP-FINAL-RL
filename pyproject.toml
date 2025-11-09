@@ -23,6 +23,8 @@ dependencies = [
     "ipython>=8.12.0",
     "jupyter>=1.0.0",
     "pyyaml>=6.0",
+    "moviepy>=1.0.3",
+    "pygame>=2.1.3",  # Para renderizar entornos classic-control como CartPole
 ]
 
 [project.optional-dependencies]
