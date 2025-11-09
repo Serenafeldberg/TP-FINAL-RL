@@ -22,6 +22,12 @@ except ImportError:
     import gym  # type: ignore
     from gym import spaces  # type: ignore
 
+# Importar ale_py para registrar el namespace ALE antes de crear entornos Atari
+try:
+    import ale_py  # noqa: F401
+except ImportError:
+    pass  # Si no está instalado, no hay problema (solo afecta entornos Atari)
+
 from . import preprocess
 
 

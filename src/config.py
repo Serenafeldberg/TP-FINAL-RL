@@ -24,15 +24,20 @@ class Config:
     GAE_LAMBDA = 0.95 #GAE Paper (Schulman 2016)
     N_STEPS = 128 #Stable-Baselines3 Atari
     N_ENVS = 1
-    BATCH_SIZE = 256
+    BATCH_SIZE = 64  # Debe ser <= N_STEPS * N_ENVS (128)
     N_EPOCHS = 4
     VALUE_LOSS_COEF = 0.5
-    ENTROPY_COEF = 0.01
+    ENTROPY_COEF = 0.05  # Aumentado de 0.01 para más exploración
     MAX_GRAD_NORM = 0.5
 
     #TRAINING
-    TOTAL_TIMESTEPS = 1_000_000
-    SAVE_FREQ = 50_000
+
+    #los voy a cambiar por ahora solo para hacer una primera prueba
+    # TOTAL_TIMESTEPS = 1_000_000
+    # SAVE_FREQ = 50_000
+    TOTAL_TIMESTEPS = 50_000      
+    SAVE_FREQ = 10_000 
+    
     LOG_FREQ = 2048
     EVAL_FREQ = 25_000
     N_EVAL_EPISODES = 10
@@ -77,3 +82,4 @@ class Config:
             resize_shape=(cls.FRAME_SIZE, cls.FRAME_SIZE),
             normalize_obs=cls.NORMALIZE_OBS,
         )
+
