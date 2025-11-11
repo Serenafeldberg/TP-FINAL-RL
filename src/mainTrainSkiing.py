@@ -106,6 +106,7 @@ class Logger:
         # Archivos de log
         self.rewards_file = self.log_dir / "rewards.csv"
         self.losses_file = self.log_dir / "losses.csv"
+        self.eval_file = self.log_dir / "eval.csv"
         
         # Inicializar archivos
         with open(self.rewards_file, 'w') as f:
@@ -113,6 +114,9 @@ class Logger:
         
         with open(self.losses_file, 'w') as f:
             f.write("timestep,policy_loss,value_loss,entropy_loss,clip_fraction,approx_kl,learning_rate\n")
+
+        with open(self.eval_file, 'w') as f:
+            f.write("timestep,mean_reward,std_reward,min_reward,max_reward,mean_length\n")
     
     def log_episode(self, timestep, episode, reward, length):
         """Log info de episodio."""
@@ -131,6 +135,82 @@ class Logger:
                 f"{metrics['approx_kl']},"
                 f"{metrics['learning_rate']}\n"
             )
+
+    def log_evaluation(self, timestep, stats):
+        """Log métricas de evaluación."""
+        with open(self.eval_file, 'a') as f:
+            f.write(
+                f"{timestep},"
+                f"{stats['mean_reward']},"
+                f"{stats['std_reward']},"
+                f"{stats['min_reward']},"
+                f"{stats['max_reward']},"
+                f"{stats['mean_length']}\n"
+            )
+
+
+def evaluate_policy(agent, n_episodes=None):
+    """
+    Evalúa la política actual durante el entrenamiento.
+
+    Args:
+        agent: instancia de PPO ya entrenada/parcialmente entrenada.
+        n_episodes: cantidad de episodios a evaluar.
+    """
+    n_eval_episodes = n_episodes or Config.N_EVAL_EPISODES
+
+    # Construir entorno de evaluación (sin clipping de recompensas)
+    eval_kwargs = Config.get_env_args()
+    eval_kwargs['clip_rewards'] = False
+
+    eval_env = make_env(
+        env_id=Config.ENV_NAME,
+        seed=Config.SEED,
+        **eval_kwargs,
+    )
+
+    # Guardar modo previo y setear eval
+    was_training = agent.actor_critic.training
+    agent.actor_critic.eval()
+
+    episode_rewards = []
+    episode_lengths = []
+
+    try:
+        for episode in range(n_eval_episodes):
+            seed = Config.SEED + 10_000 + episode if Config.SEED is not None else None
+            obs, _ = eval_env.reset(seed=seed)
+
+            done = False
+            total_reward = 0.0
+            episode_length = 0
+
+            while not done:
+                action, _, _ = agent.get_action(obs, deterministic=True)
+                obs, reward, terminated, truncated, _ = eval_env.step(action)
+                done = terminated or truncated
+
+                total_reward += reward
+                episode_length += 1
+
+            episode_rewards.append(total_reward)
+            episode_lengths.append(episode_length)
+    finally:
+        eval_env.close()
+        # Restaurar modo anterior
+        if was_training:
+            agent.actor_critic.train()
+
+    stats = {
+        'mean_reward': float(np.mean(episode_rewards)),
+        'std_reward': float(np.std(episode_rewards)),
+        'min_reward': float(np.min(episode_rewards)),
+        'max_reward': float(np.max(episode_rewards)),
+        'mean_length': float(np.mean(episode_lengths)),
+        'std_length': float(np.std(episode_lengths)),
+    }
+
+    return stats
 
 # Entrenamiento PPO
 
@@ -206,6 +286,9 @@ def train(env, args):
     # Total timesteps
     total_timesteps = args.total_timesteps if args.total_timesteps else Config.TOTAL_TIMESTEPS
     
+    best_eval_reward = float("-inf")
+    best_model_path = os.path.join(Config.MODEL_DIR, "ppo_skiing_best.pth")
+
     # Variables de tracking
     print(f"\n[5/5] Iniciando entrenamiento...")
     print(f"  Total timesteps: {total_timesteps:,}")
@@ -313,6 +396,21 @@ def train(env, args):
         
         # Reset buffer para próximo rollout
         buffer.reset()
+
+        # === EVALUATION PHASE ===
+        if Config.EVAL_FREQ and timestep % Config.EVAL_FREQ == 0:
+            eval_stats = evaluate_policy(agent, Config.N_EVAL_EPISODES)
+            logger.log_evaluation(timestep, eval_stats)
+            print(f"[Eval @ {timestep:,}] "
+                  f"Mean Reward: {eval_stats['mean_reward']:.2f} ± {eval_stats['std_reward']:.2f} | "
+                  f"Min: {eval_stats['min_reward']:.2f} | "
+                  f"Max: {eval_stats['max_reward']:.2f} | "
+                  f"Mean Length: {eval_stats['mean_length']:.1f}")
+
+            if eval_stats['mean_reward'] > best_eval_reward:
+                best_eval_reward = eval_stats['mean_reward']
+                agent.save(best_model_path)
+                print(f"  ✓ Nuevo mejor modelo guardado en: {best_model_path}")
         
         # === SAVE MODEL ===
         if timestep % Config.SAVE_FREQ == 0:
