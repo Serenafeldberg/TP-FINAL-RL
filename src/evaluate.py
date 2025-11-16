@@ -1,5 +1,5 @@
 """
-Script para evaluar modelos PPO entrenados.
+Script para evaluar modelos PPO entrenados en Flappy Bird.
 
 Uso:
     python evaluate.py --model path/to/model.pth --episodes 10 --render
@@ -26,11 +26,11 @@ from ppoAgent.ppo import PPO
 def record_video(
     model_path: str,
     n_episodes: int = 1,
-    video_name: str = "trainedAgent",
+    video_name: str = "flappy_agent",
     deterministic: bool = True
 ):
     """
-    Grabar video del agente jugando.
+    Grabar video del agente jugando Flappy Bird.
     
     Args:
         model_path: path al checkpoint .pth
@@ -39,7 +39,7 @@ def record_video(
         deterministic: si usar acciones determinísticas
     """
     print("=" * 60)
-    print("GRABANDO VIDEO DEL AGENTE")
+    print("GRABANDO VIDEO DEL AGENTE - FLAPPY BIRD")
     print("=" * 60)
     print(f"Modelo: {model_path}")
     print(f"Episodios: {n_episodes}")
@@ -49,26 +49,18 @@ def record_video(
     # Crear entorno con render_mode para video
     print("\n[1/3] Creando entorno...")
     
-    try:
-        import ale_py
-    except ImportError:
-        pass
-    
     # Crear entorno base con render
     env = gym.make(Config.ENV_NAME, render_mode='rgb_array')
     
-    # Aplicar wrappers básicos (sin preprocesamiento visual intenso)
-    from envs.wrappers import StepAPICompat, ActionRepeat, RewardClip, TimeLimit
+    # Aplicar wrappers básicos
+    from envs.wrappers import StepAPICompat, RewardClip, TimeLimit
     
     env = StepAPICompat(env)
     
-    if Config.ACTION_REPEAT > 1:
-        env = ActionRepeat(env, repeat=Config.ACTION_REPEAT)
+    if Config.get_env_args().get('max_episode_steps'):
+        env = TimeLimit(env, Config.get_env_args()['max_episode_steps'])
     
-    if Config.MAX_EPISODE_STEPS:
-        env = TimeLimit(env, Config.MAX_EPISODE_STEPS)
-    
-    if Config.CLIP_REWARDS:
+    if Config.get_env_args().get('clip_rewards'):
         env = RewardClip(env)
     
     # Wrapper de RecordVideo
@@ -79,20 +71,6 @@ def record_video(
         episode_trigger=lambda x: True,  # Grabar todos los episodios
         video_length=0,  # Grabar episodios completos
     )
-    
-    # Ahora aplicar wrappers de preprocesamiento (para que el agente entienda)
-    from envs.wrappers import PreprocessObs, FrameStack
-    
-    if Config.GRAYSCALE:
-        env = PreprocessObs(
-            env,
-            gray=Config.GRAYSCALE,
-            resize_shape=(Config.FRAME_SIZE, Config.FRAME_SIZE),
-            normalize=Config.NORMALIZE_OBS
-        )
-    
-    if Config.FRAME_STACK > 1:
-        env = FrameStack(env, k=Config.FRAME_STACK)
     
     obs_shape = env.observation_space.shape
     action_dim = env.action_space.n if hasattr(env.action_space, 'n') else env.action_space.shape[0]
@@ -107,9 +85,6 @@ def record_video(
         obs_shape=obs_shape,
         action_dim=action_dim,
         action_type=action_type,
-        cnn_channels=Config.CNN_CHANNELS,
-        cnn_kernels=Config.CNN_KERNELS,
-        cnn_strides=Config.CNN_STRIDES,
         hidden_size=Config.HIDDEN_SIZE
     )
     
@@ -180,7 +155,7 @@ def evaluate(
     deterministic: bool = True
 ):
     """
-    Evaluar un modelo PPO guardado.
+    Evaluar un modelo PPO guardado en Flappy Bird.
     
     Args:
         model_path: path al checkpoint .pth
@@ -189,7 +164,7 @@ def evaluate(
         deterministic: si usar acciones determinísticas (sin sampling)
     """
     print("=" * 60)
-    print("EVALUACIÓN DE MODELO PPO")
+    print("EVALUACIÓN DE MODELO PPO - FLAPPY BIRD")
     print("=" * 60)
     print(f"Modelo: {model_path}")
     print(f"Episodios: {n_episodes}")
@@ -221,9 +196,6 @@ def evaluate(
         obs_shape=obs_shape,
         action_dim=action_dim,
         action_type=action_type,
-        cnn_channels=Config.CNN_CHANNELS,
-        cnn_kernels=Config.CNN_KERNELS,
-        cnn_strides=Config.CNN_STRIDES,
         hidden_size=Config.HIDDEN_SIZE
     )
     
@@ -293,7 +265,7 @@ def evaluate(
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Evaluar modelo PPO')
+    parser = argparse.ArgumentParser(description='Evaluar modelo PPO en Flappy Bird')
     parser.add_argument(
         '--model',
         type=str,
@@ -324,8 +296,8 @@ def main():
     parser.add_argument(
         '--video-name',
         type=str,
-        default='trainedAgent',
-        help='Nombre del archivo de video (default: trainedAgent)'
+        default='flappy_agent',
+        help='Nombre del archivo de video (default: flappy_agent)'
     )
     
     args = parser.parse_args()

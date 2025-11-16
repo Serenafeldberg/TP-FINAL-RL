@@ -3,6 +3,8 @@ Redes Actor-Critic para PPO.
 
 Actor: salida la distribución de acción (media para acciones continuas)
 Critic: salida el valor V(s)
+
+Diseñado para observaciones vectoriales (LIDAR) usando MLP.
 """
 import torch
 import torch.nn as nn
@@ -15,6 +17,8 @@ class ActorCritic(nn.Module):
     """
     - Actor: predice la política π(a|s)
     - Critic: predice el valor V(s), para criticar la acción del actor
+    
+    Usa MLP para observaciones vectoriales (no CNN).
     """
     
     def __init__(
@@ -22,20 +26,14 @@ class ActorCritic(nn.Module):
         obs_shape,
         action_dim,
         action_type="discrete",
-        cnn_channels=(32, 64, 64),
-        cnn_kernels=(8, 4, 3),
-        cnn_strides=(4, 2, 1),
-        hidden_size=512
+        hidden_size=256
     ):
         """
         Args:
-            obs_shape: tuple, forma de la observación (C, H, W) para imágenes
+            obs_shape: tuple, forma de la observación (n_features,) para vector
             action_dim: int, número de acciones (discreto) o dim del espacio (continuo)
             action_type: "discrete" o "continuous"
-            cnn_channels: canales de las capas conv
-            cnn_kernels: tamaños de kernel
-            cnn_strides: strides
-            hidden_size: tamaño de la capa oculta final
+            hidden_size: tamaño de las capas ocultas de la MLP
         """
         super().__init__()
         
@@ -43,24 +41,26 @@ class ActorCritic(nn.Module):
         self.action_dim = action_dim
         self.action_type = action_type
         
-        # Feature extractor (CNN para imágenes tipo Atari)
-        if len(obs_shape) == 3:  # (C, H, W)
-            self.feature_extractor = self._build_cnn(
-                obs_shape[0], cnn_channels, cnn_kernels, cnn_strides
-            )
-            # Calcular tamaño de salida de CNN
-            with torch.no_grad():
-                dummy = torch.zeros(1, *obs_shape)
-                cnn_out = self.feature_extractor(dummy)
-                cnn_out_size = cnn_out.view(1, -1).size(1)
+        # Calcular dimensión de entrada
+        if len(obs_shape) == 1:
+            # Vector 1D: (n_features,)
+            input_dim = obs_shape[0]
         else:
-            # Para estados de baja dimensión
-            self.feature_extractor = nn.Identity()
-            cnn_out_size = obs_shape[0] if len(obs_shape) == 1 else np.prod(obs_shape)
+            # Flatten si es multidimensional
+            input_dim = int(np.prod(obs_shape))
         
-        # Capa compartida
+        # Feature extractor: MLP para observaciones vectoriales
+        self.feature_extractor = nn.Sequential(
+            nn.Linear(input_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU()
+        )
+        
+        # Capa compartida (opcional, puede ser parte del feature extractor)
+        # Por ahora lo dejamos como está para mantener estructura similar
         self.shared_fc = nn.Sequential(
-            nn.Linear(cnn_out_size, hidden_size),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU()
         )
         
@@ -76,46 +76,45 @@ class ActorCritic(nn.Module):
         
         # Critic head
         self.critic_head = nn.Linear(hidden_size, 1)
-        self._init_weights() # Inicialización de pesos
-    
-    def _build_cnn(self, in_channels, channels, kernels, strides):
-        """Construimos el extractor de características CNN."""
-        layers = []
-        prev_c = in_channels
-        
-        for c, k, s in zip(channels, kernels, strides):
-            layers.append(nn.Conv2d(prev_c, c, kernel_size=k, stride=s))
-            layers.append(nn.ReLU())
-            prev_c = c
-        
-        return nn.Sequential(*layers)
+        self._init_weights()  # Inicialización de pesos
     
     def _init_weights(self):
         """Inicializamos los pesos de la red."""
         for m in self.modules():
-            if isinstance(m, (nn.Linear, nn.Conv2d)):
+            if isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
         
         # Último layer del actor y critic con gain menor para estabilidad
-        # Gain de 0.01 es demasiado bajo y hace la política casi determinista
         if self.action_type == "discrete":
-            nn.init.orthogonal_(self.actor_head.weight, gain=0.1)  # Aumentado de 0.01
+            nn.init.orthogonal_(self.actor_head.weight, gain=0.01)
         else:
-            nn.init.orthogonal_(self.actor_mean.weight, gain=0.1)
+            nn.init.orthogonal_(self.actor_mean.weight, gain=0.01)
         nn.init.orthogonal_(self.critic_head.weight, gain=1.0)
     
     def forward(self, obs):
         """
-        Pasamos por la red.
+        Pasamos por la red MLP.
         Returns:
             features: features extraídas
-            x: salida de la red
         """
-        x = self.feature_extractor(obs)
-        x = x.view(x.size(0), -1)  # flatten para que sea un vector
-        features = self.shared_fc(x)
+        # Asegurar que obs es un tensor en el mismo device que el modelo
+        if isinstance(obs, np.ndarray):
+            obs = torch.as_tensor(obs, dtype=torch.float32, device=next(self.parameters()).device)
+        elif not isinstance(obs, torch.Tensor):
+            obs = torch.as_tensor(obs, dtype=torch.float32)
+        
+        # Flatten si es necesario
+        if obs.ndim > 1:
+            batch_size = obs.shape[0]
+            obs = obs.view(batch_size, -1)
+        else:
+            obs = obs.view(1, -1)
+        
+        # Pasar por MLP
+        features = self.feature_extractor(obs)
+        features = self.shared_fc(features)
         return features
     
     def get_action_and_value(self, obs, action=None):
@@ -123,7 +122,7 @@ class ActorCritic(nn.Module):
         Evaluar observación(es) y opcionalmente una acción específica.
         
         Args:
-            obs: tensor [batch, *obs_shape]
+            obs: tensor [batch, *obs_shape] o [*obs_shape]
             action: opcional, tensor [batch, action_dim] para evaluar
         
         Returns:
@@ -132,6 +131,16 @@ class ActorCritic(nn.Module):
             entropy: entropía de la distribución
             value: V(s)
         """
+        # Asegurar que obs tiene batch dimension y está en el device correcto
+        device = next(self.parameters()).device
+        if isinstance(obs, np.ndarray):
+            obs = torch.as_tensor(obs, dtype=torch.float32, device=device)
+        elif isinstance(obs, torch.Tensor):
+            obs = obs.to(device)
+        
+        if obs.ndim == len(self.obs_shape):
+            obs = obs.unsqueeze(0)
+        
         features = self.forward(obs)
         
         # Critic: predice el valor V(s)
@@ -140,10 +149,18 @@ class ActorCritic(nn.Module):
         # Actor: predice la política π(a|s)
         if self.action_type == "discrete":
             logits = self.actor_head(features)  # [batch, action_dim]
-            dist = Categorical(logits=logits) #modelo las acciones con una distribucion categorica, podria ser una normal
+            dist = Categorical(logits=logits)
             
             if action is None:
                 action = dist.sample()
+            else:
+                # Asegurar que action es un tensor con la forma correcta
+                if isinstance(action, (int, np.integer)):
+                    action = torch.tensor([action], device=obs.device)
+                elif isinstance(action, np.ndarray):
+                    action = torch.as_tensor(action, dtype=torch.long, device=obs.device)
+                if action.ndim == 0:
+                    action = action.unsqueeze(0)
             
             log_prob = dist.log_prob(action)
             entropy = dist.entropy()
@@ -155,6 +172,11 @@ class ActorCritic(nn.Module):
             
             if action is None:
                 action = dist.sample()
+            else:
+                if isinstance(action, np.ndarray):
+                    action = torch.as_tensor(action, dtype=torch.float32, device=obs.device)
+                if action.ndim == 1 and len(action.shape) == 1:
+                    action = action.unsqueeze(0)
             
             log_prob = dist.log_prob(action).sum(dim=-1)  # sumamos sobre las dimensiones de la acción
             entropy = dist.entropy().sum(dim=-1)
@@ -163,6 +185,16 @@ class ActorCritic(nn.Module):
     
     def get_value(self, obs):
         """Solo obtenemos V(s) - más eficiente cuando no necesitamos la política."""
+        # Asegurar que obs tiene batch dimension y está en el device correcto
+        device = next(self.parameters()).device
+        if isinstance(obs, np.ndarray):
+            obs = torch.as_tensor(obs, dtype=torch.float32, device=device)
+        elif isinstance(obs, torch.Tensor):
+            obs = obs.to(device)
+        
+        if obs.ndim == len(self.obs_shape):
+            obs = obs.unsqueeze(0)
+        
         features = self.forward(obs)
         return self.critic_head(features).squeeze(-1)
 

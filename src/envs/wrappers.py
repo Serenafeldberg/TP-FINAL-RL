@@ -1,18 +1,17 @@
 """
-Gym wrappers used by the training pipeline.
+Gym wrappers used by the training pipeline for Flappy Bird.
 
 Includes:
-- ActionRepeat: repeat an action several frames.
-- FrameStack: stack last k observations (channels-first output).
-- RewardClip: clip rewards to [-1, 1].
+- RewardClip: clip rewards to [-1, 1] (opcional).
 - TimeLimit: simple step-limited wrapper.
-- PreprocessObs: optional observation preprocessing (gray/resize/normalize).
 - make_env: helper to build an env with common wrappers for PPO.
+
+Nota: No incluye wrappers específicos de imágenes (FrameStack, PreprocessObs, etc.)
+      ya que Flappy Bird usa observaciones vectoriales (LIDAR).
 """
 from __future__ import annotations
 
-import collections
-from typing import Deque, Optional, Tuple
+from typing import Optional
 import numpy as np
 
 try:
@@ -21,14 +20,6 @@ try:
 except ImportError:
     import gym  # type: ignore
     from gym import spaces  # type: ignore
-
-# Importar ale_py para registrar el namespace ALE antes de crear entornos Atari
-try:
-    import ale_py  # noqa: F401
-except ImportError:
-    pass  # Si no está instalado, no hay problema (solo afecta entornos Atari)
-
-from . import preprocess
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -43,80 +34,6 @@ def _unpack_step(result):
 
 
 # --- Wrappers ---------------------------------------------------------------
-
-class ActionRepeat(gym.Wrapper):
-    """Repeat same action for N steps and sum rewards."""
-    def __init__(self, env, repeat: int = 1):
-        super().__init__(env)
-        assert repeat >= 1
-        self.repeat = repeat
-
-    def step(self, action):
-        total_reward = 0.0
-        info = {}
-        for _ in range(self.repeat):
-            result = self.env.step(action)
-            obs, reward, terminated, truncated, info = _unpack_step(result)
-            total_reward += reward
-            if terminated or truncated:
-                return obs, total_reward, terminated, truncated, info
-        return obs, total_reward, terminated, truncated, info
-
-
-class FrameStack(gym.ObservationWrapper):
-    """Stack the last k observations, output in CHW format."""
-    def __init__(self, env, k: int):
-        super().__init__(env)
-        self.k = k
-        self.frames: Deque[np.ndarray] = collections.deque(maxlen=k)
-
-        obs_space = env.observation_space
-        assert isinstance(obs_space, spaces.Box), "FrameStack expects Box space"
-        shp = obs_space.shape
-
-        if obs_space.dtype == np.uint8:
-            low_v, high_v, dtype = 0, 255, np.uint8
-        else:
-            low_v, high_v, dtype = float(obs_space.low.min()), float(obs_space.high.max()), np.float32
-
-        if len(shp) == 3:  # HWC
-            H, W, C = shp
-            new_shape = (C * k, H, W)
-        elif len(shp) == 2:
-            H, W = shp
-            new_shape = (k, H, W)
-        else:
-            raise ValueError(f"Unsupported observation shape: {shp}")
-
-        self.observation_space = spaces.Box(
-            low=low_v, high=high_v, shape=new_shape, dtype=dtype
-        )
-
-    def _to_chw(self, obs):
-        arr = np.asarray(obs)
-        if arr.ndim == 3 and arr.shape[2] in (1, 3, 4):
-            arr = np.transpose(arr, (2, 0, 1))
-        elif arr.ndim == 2:
-            arr = arr[None, ...]
-        return arr
-
-    def observation(self, obs):
-        arr = self._to_chw(obs)
-        self.frames.append(arr)
-        while len(self.frames) < self.k:
-            self.frames.appendleft(arr.copy())
-        return np.concatenate(list(self.frames), axis=0)
-
-    def reset(self, **kwargs):
-        res = self.env.reset(**kwargs)
-        obs, info = (res if isinstance(res, tuple) else (res, {}))
-        self.frames.clear()
-        arr = self._to_chw(obs)
-        for _ in range(self.k):
-            self.frames.append(arr.copy())
-        stacked = np.concatenate(list(self.frames), axis=0)
-        return (stacked, info) if info else stacked
-
 
 class RewardClip(gym.RewardWrapper):
     """Clip rewards into fixed [low, high] range."""
@@ -141,7 +58,7 @@ class TimeLimit(gym.Wrapper):
         obs, reward, terminated, truncated, info = _unpack_step(self.env.step(action))
         self._elapsed_steps += 1
         if self._elapsed_steps >= self._max_episode_steps:
-            done = True
+            truncated = True
             info = dict(info)
             info["TimeLimit.truncated"] = True
         return obs, reward, terminated, truncated, info
@@ -156,7 +73,7 @@ class StepAPICompat(gym.Wrapper):
     Normaliza la API:
       - step(): (obs, reward, done, info) -> (obs, reward, terminated, truncated, info)
       - reset(): obs -> (obs, {})
-    Útil cuando el env subyacente usa la firma 'vieja' (p.ej., ALE).
+    Útil cuando el env subyacente usa la firma 'vieja'.
     """
     def step(self, action):
         out = self.env.step(action)
@@ -179,56 +96,45 @@ class StepAPICompat(gym.Wrapper):
         return res
 
 
-class PreprocessObs(gym.ObservationWrapper):
-    """Apply grayscale, resize and normalization to image observations."""
-    def __init__(
-        self,
-        env,
-        gray: bool = False,
-        resize_shape: Optional[Tuple[int, int]] = None,
-        normalize: bool = True,
-    ):
+class NormalizeObs(gym.ObservationWrapper):
+    """
+    Normaliza observaciones vectoriales a [0, 1] o [-1, 1].
+    Útil para estabilizar el entrenamiento con observaciones LIDAR.
+    """
+    def __init__(self, env, low=-1.0, high=1.0):
         super().__init__(env)
-        self.gray = gray
-        self.resize_shape = resize_shape
-        self.normalize = normalize
-
+        self.low = low
+        self.high = high
+        
         obs_space = env.observation_space
         if isinstance(obs_space, spaces.Box):
-            if self.gray:
-                H, W = obs_space.shape[:2]
-                if self.resize_shape:
-                    H, W = self.resize_shape
-                if self.normalize:
-                    self.observation_space = spaces.Box(
-                        low=0.0, high=1.0, shape=(H, W), dtype=np.float32
-                    )
-                else:
-                    self.observation_space = spaces.Box(
-                        low=0, high=255, shape=(H, W), dtype=np.uint8
-                    )
-            else:
-                H, W, C = obs_space.shape if len(obs_space.shape) == 3 else (*obs_space.shape, 1)
-                if self.resize_shape:
-                    H, W = self.resize_shape
-                if self.normalize:
-                    self.observation_space = spaces.Box(
-                        low=0.0, high=1.0, shape=(H, W, C), dtype=np.float32
-                    )
-                else:
-                    self.observation_space = spaces.Box(
-                        low=0, high=255, shape=(H, W, C), dtype=np.uint8
-                    )
-
-    def observation(self, obs: np.ndarray) -> np.ndarray:
-        arr = obs
-        if self.gray:
-            arr = preprocess.to_gray(arr)
-        if self.resize_shape is not None:
-            arr = preprocess.resize(arr, self.resize_shape)
-        if self.normalize:
-            arr = preprocess.normalize_obs(arr)
-        return arr
+            # Actualizar observation_space para reflejar la normalización
+            self.observation_space = spaces.Box(
+                low=low,
+                high=high,
+                shape=obs_space.shape,
+                dtype=np.float32
+            )
+    
+    def observation(self, obs):
+        """Normaliza la observación al rango [low, high]."""
+        obs = np.asarray(obs, dtype=np.float32)
+        
+        # Normalizar basándose en los límites del espacio original
+        obs_space = self.env.observation_space
+        if isinstance(obs_space, spaces.Box):
+            original_low = obs_space.low
+            original_high = obs_space.high
+            
+            # Normalizar a [0, 1] primero
+            obs_normalized = (obs - original_low) / (original_high - original_low + 1e-8)
+            
+            # Escalar a [low, high]
+            obs_scaled = obs_normalized * (self.high - self.low) + self.low
+            
+            return np.clip(obs_scaled, self.low, self.high)
+        
+        return obs
 
 
 # --- Factory ----------------------------------------------------------------
@@ -236,20 +142,31 @@ class PreprocessObs(gym.ObservationWrapper):
 def make_env(
     env_id: str,
     seed: Optional[int] = None,
-    frame_stack: int = 4,
-    action_repeat: int = 1,
-    clip_rewards: bool = True,
+    clip_rewards: bool = False,
     max_episode_steps: Optional[int] = None,
-    gray: bool = False,
-    resize_shape: Optional[Tuple[int, int]] = None,
-    normalize_obs: bool = True,
+    normalize_obs: bool = False,
     **kwargs,
 ):
-    """Create an environment and chain common wrappers for PPO training."""
+    """
+    Create an environment and chain common wrappers for PPO training.
+    
+    Args:
+        env_id: ID del entorno Gymnasium
+        seed: Seed para reproducibilidad
+        clip_rewards: Si clipear rewards a [-1, 1]
+        max_episode_steps: Límite máximo de pasos por episodio (None = sin límite)
+        normalize_obs: Si normalizar observaciones vectoriales
+        **kwargs: Argumentos adicionales para gym.make()
+    
+    Returns:
+        Entorno envuelto con wrappers apropiados
+    """
     env = gym.make(env_id, **kwargs)
 
+    # Compatibilidad de API (Gym vs Gymnasium)
     env = StepAPICompat(env)
 
+    # Seed
     if seed is not None:
         try:
             env.reset(seed=seed)
@@ -264,20 +181,15 @@ def make_env(
             except Exception:
                 pass
 
+    # Time limit
     if max_episode_steps is not None:
         env = TimeLimit(env, max_episode_steps)
 
-    if action_repeat and action_repeat > 1:
-        env = ActionRepeat(env, repeat=action_repeat)
+    # Normalización de observaciones (opcional)
+    if normalize_obs:
+        env = NormalizeObs(env)
 
-    if gray or resize_shape or normalize_obs:
-        env = PreprocessObs(
-            env, gray=gray, resize_shape=resize_shape, normalize=normalize_obs
-        )
-
-    if frame_stack and frame_stack > 1:
-        env = FrameStack(env, k=frame_stack)
-
+    # Reward clipping (opcional)
     if clip_rewards:
         env = RewardClip(env)
 
