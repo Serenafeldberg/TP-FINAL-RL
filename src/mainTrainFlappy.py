@@ -16,12 +16,13 @@ from pathlib import Path
 
 import gymnasium as gym
 
-from src.config import Config
-from src.ppoAgent.utils import set_seed, print_system_info
-from src.envs.wrappers import make_env
-from src.ppoAgent.actorCritic import ActorCritic
-from src.ppoAgent.ppo import PPO
-from src.ppoAgent.memory import RolloutBuffer
+import flappy_bird_gymnasium
+from config import Config
+from ppoAgent.utils import set_seed, print_system_info
+#from envs.wrappers import make_env
+from ppoAgent.actorCritic import ActorCritic
+from ppoAgent.ppo import PPO
+from ppoAgent.memory import RolloutBuffer
 
 
 def parse_args():
@@ -39,15 +40,15 @@ def parse_args():
     return p.parse_args()
 
 
-def build_env(env_id: str, args=None):
-    """Crea el entorno con la cadena de wrappers definida en Config.get_env_args()."""
-    env_kwargs = Config.get_env_args()
-    
-    return make_env(
-        env_id=env_id,
-        seed=Config.SEED,
-        **env_kwargs,
-    )
+#def build_env(env_id: str, args=None):
+#    """Crea el entorno con la cadena de wrappers definida en Config.get_env_args()."""
+#    env_kwargs = Config.get_env_args()
+#    
+#    return make_env(
+#        env_id=env_id,
+#        seed=Config.SEED,
+#        **env_kwargs,
+#    )
 
 
 def dry_run():
@@ -215,6 +216,8 @@ def train(env, args):
         # Recolectar N_STEPS de experiencia, osea trayectorias usando la politica actual
         for step in range(Config.N_STEPS):
             #seleccionar acción (usando la politica actual)
+            #obs = obs / 400.0   # si tus distancias están en px (0–400)
+            obs = (obs - obs.mean()) / (obs.std() + 1e-8)
             action, log_prob, value = agent.get_action(obs)
             
             #ejecuto la accion en el environment
@@ -336,9 +339,12 @@ if __name__ == "__main__":
     env_id = args.env_id or Config.ENV_NAME
     print(f"Target env_id: {env_id}")
 
+    env = gym.make(Config.ENV_NAME, render_mode="human", use_lidar=True)
+
     # Crear entorno
     try:
-        env = build_env(env_id, args)
+        #env = build_env(env_id, args)
+        v = 1
     except Exception as e:
         msg = str(e)
         print(f"[ERROR] No se pudo crear '{env_id}': {msg}")
@@ -353,6 +359,7 @@ if __name__ == "__main__":
 
     # Entrenamiento completo
     try:
+        
         train(env, args)
     finally:
         env.close()
