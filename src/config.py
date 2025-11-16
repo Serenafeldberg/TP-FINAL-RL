@@ -4,21 +4,21 @@ import torch
 class Config:
     # ENVIRONMENT
     # TODO: ajustar ENV_NAME al id real del entorno de Flappy Bird con LIDAR
-    ENV_NAME = "FlappyBirdLidar-v0"
+    ENV_NAME = "FlappyBird-v0"
     SEED = 42
 
     # PPO HYPERPARAMETERS
-    LEARNING_RATE = 3e-4  # Learning rate estándar para MLP
+    LEARNING_RATE = 1e-4 #3e-4  # Learning rate estándar para MLP
     LR_DECAY = True
     CLIP_EPSILON = 0.2  # PPO Paper (Schulman 2017)
     GAMMA = 0.99 
     GAE_LAMBDA = 0.95  # GAE Paper (Schulman 2016)
-    N_STEPS = 128  # Steps por rollout
+    N_STEPS = 1024  # Steps por rollout
     N_ENVS = 1
     BATCH_SIZE = 64  # Debe ser <= N_STEPS * N_ENVS (128)
     N_EPOCHS = 4
     VALUE_LOSS_COEF = 0.5
-    ENTROPY_COEF = 0.01
+    ENTROPY_COEF = 0.05 #0.01
     MAX_GRAD_NORM = 0.5
 
     # TRAINING
@@ -61,4 +61,6 @@ class Config:
             # Wrappers genéricos opcionales
             clip_rewards=False,  # No clipear rewards por defecto (ajustar según necesidad)
             max_episode_steps=None,  # Sin límite de pasos por defecto
+            render_mode="human",
+            use_lidar=True
         )
