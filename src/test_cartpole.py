@@ -31,43 +31,6 @@ from ppoAgent.actorCritic import ActorCritic
 from ppoAgent.ppo import PPO
 from ppoAgent.memory import RolloutBuffer
 
-# Normalizador simple de observaciones (running mean/std)
-class RunningNorm:
-    def __init__(self, shape, eps=1e-8):
-        self.mean = np.zeros(shape, dtype=np.float64)
-        self.var = np.ones(shape, dtype=np.float64)
-        self.count = eps
-
-    def update(self, x):
-        x = np.array(x, dtype=np.float64)
-        batch_mean = x.mean(axis=0)
-        batch_var = x.var(axis=0)
-        batch_count = 1
-        delta = batch_mean - self.mean
-        tot = self.count + batch_count
-        new_mean = self.mean + delta * batch_count / tot
-        m_a = self.var * self.count
-        m_b = batch_var * batch_count
-        M2 = m_a + m_b + delta ** 2 * self.count * batch_count / tot
-        self.mean, self.var, self.count = new_mean, M2 / tot, tot
-
-    def normalize(self, x):
-        return (x - self.mean) / (np.sqrt(self.var) + 1e-8)
-    
-    def get_state(self):
-        """Obtener estado del normalizador para guardarlo."""
-        return {
-            'mean': self.mean,
-            'var': self.var,
-            'count': self.count
-        }
-    
-    def set_state(self, state):
-        """Cargar estado del normalizador."""
-        self.mean = state['mean']
-        self.var = state['var']
-        self.count = state['count']
-
 
 # Script principal
 def train_cartpole():
@@ -83,9 +46,6 @@ def train_cartpole():
     obs_shape = env.observation_space.shape
     action_dim = env.action_space.n
     print(f"Obs shape: {obs_shape}, Actions: {action_dim}")
-
-    # Normalizador de observaciones
-    obs_norm = RunningNorm(obs_shape)
 
     # Crear modelo y agente PPO
     # Usar arquitectura más pequeña para CartPole (más eficiente)
@@ -126,8 +86,6 @@ def train_cartpole():
 
     # Entrenamiento
     obs, _ = env.reset(seed=42)
-    obs_norm.update(obs)
-    obs = obs_norm.normalize(obs)
 
     episode_rewards = []
     episode_lengths = []
@@ -148,27 +106,23 @@ def train_cartpole():
 
             buffer.add(
                 obs=torch.as_tensor(obs, dtype=torch.float32, device=device),
-                action=action,
-                log_prob=logp,
+                action=action.item(),  # Convertir a escalar para acciones discretas
+                log_prob=logp.item() if isinstance(logp, torch.Tensor) else logp,
                 reward=torch.tensor([reward], dtype=torch.float32, device=device),
                 done=torch.tensor([done], dtype=torch.float32, device=device),
-                value=value
+                value=value.item() if isinstance(value, torch.Tensor) else value
             )
 
             current_return += reward
             current_len += 1
 
             obs = next_obs
-            obs_norm.update(obs)
-            obs = obs_norm.normalize(obs)
 
             if done:
                 episode_rewards.append(current_return)
                 episode_lengths.append(current_len)
                 current_return, current_len = 0, 0
                 obs, _ = env.reset()
-                obs_norm.update(obs)
-                obs = obs_norm.normalize(obs)
 
         # bootstrap
         with torch.no_grad():
@@ -340,20 +294,6 @@ def evaluate_cartpole(
     print(f"  Observation shape: {obs_shape}")
     print(f"  Action dim: {action_dim}")
     
-    # Normalizador (necesitamos inicializarlo con algunas observaciones)
-    obs_norm = RunningNorm(obs_shape)
-    # Calentar el normalizador con algunas observaciones aleatorias
-    temp_env = gym.make("CartPole-v1")
-    for _ in range(100):
-        obs, _ = temp_env.reset()
-        obs_norm.update(obs)
-        for _ in range(10):
-            obs, _, terminated, truncated, _ = temp_env.step(temp_env.action_space.sample())
-            obs_norm.update(obs)
-            if terminated or truncated:
-                break
-    temp_env.close()
-    
     # Cargar modelo
     print("\n[2/3] Cargando modelo...")
     model = ActorCritic(
@@ -375,7 +315,6 @@ def evaluate_cartpole(
     
     for episode in range(n_episodes):
         obs, _ = env.reset(seed=seed + episode if seed else None)
-        obs = obs_norm.normalize(obs)
         
         done = False
         episode_reward = 0.0
@@ -386,8 +325,6 @@ def evaluate_cartpole(
             
             obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-            
-            obs = obs_norm.normalize(obs)
             
             episode_reward += reward
             episode_length += 1

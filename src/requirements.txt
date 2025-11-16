@@ -1,9 +1,9 @@
 torch>=2.0.0
-torchvision>=0.15.0
 
-gymnasium[atari]>=0.29.0
-gymnasium[accept-rom-license]>=0.29.0
-ale-py>=0.8.1
+gymnasium>=0.29.0
+# TODO: agregar el paquete específico del entorno Flappy Bird con LIDAR
+# Ejemplo: gym-flappy-bird-lidar>=0.1.0
+# o el nombre correcto del paquete que proporcione el entorno
 
 numpy>=1.24.0
 matplotlib>=3.7.0
@@ -12,7 +12,6 @@ pandas>=2.0.0
 tqdm>=4.65.0
 
 tensorboard>=2.13.0
-opencv-python>=4.8.0
 
 ipython>=8.12.0
 jupyter>=1.0.0
