@@ -206,6 +206,15 @@ def train(env, args, config_dict=None):
         print(f"  Hidden Size: {Config.HIDDEN_SIZE}")
         print(f"  Batch Size: {Config.BATCH_SIZE}")
     
+    # Ajustar para modo test ANTES de crear el buffer
+    if args.test_mode:
+        # Reducir temporalmente N_STEPS y BATCH_SIZE para que sea MUY corto
+        original_n_steps = Config.N_STEPS
+        original_batch_size = Config.BATCH_SIZE
+        Config.N_STEPS = 64  # Reducir a 64 steps por update
+        Config.BATCH_SIZE = 32  # Reducir batch size también (debe ser <= N_STEPS)
+        print(f"\n⚠️  MODO TEST: N_STEPS={Config.N_STEPS}, BATCH_SIZE={Config.BATCH_SIZE}")
+    
     # Obtener info del environment
     obs_shape = env.observation_space.shape
     action_dim = env.action_space.n if hasattr(env.action_space, 'n') else env.action_space.shape[0]
@@ -281,16 +290,9 @@ def train(env, args, config_dict=None):
     
     # Total timesteps - modo test con muy pocos updates
     # Nota: el loop principal itera sobre "updates", cada uno recolecta N_STEPS de experiencia
-    # En la sección de total_timesteps (alrededor de línea 284-292):
     if args.test_mode:
-        # Reducir temporalmente N_STEPS y BATCH_SIZE para que sea MUY corto
-        original_n_steps = Config.N_STEPS
-        original_batch_size = Config.BATCH_SIZE
-        Config.N_STEPS = 64  # Reducir a 64 steps por update
-        Config.BATCH_SIZE = 32  # Reducir batch size también (debe ser <= N_STEPS)
         total_timesteps = 1  # Solo 1 update
-        print(f"\nMODO TEST: Solo {total_timesteps} update con {Config.N_STEPS} steps/update = {total_timesteps * Config.N_STEPS} timesteps totales")
-        print(f"  Batch size ajustado a: {Config.BATCH_SIZE} (debe ser <= N_STEPS)")
+        print(f"\n⚠️  MODO TEST: Solo {total_timesteps} update ({total_timesteps * Config.N_STEPS} timesteps del entorno)")
     else:
         total_timesteps = Config.TOTAL_TIMESTEPS // Config.N_STEPS
         print(f"\n📊 Entrenamiento completo: {total_timesteps:,} updates ({Config.TOTAL_TIMESTEPS:,} timesteps del entorno)")
