@@ -281,14 +281,17 @@ def train(env, args, config_dict=None):
     
     # Total timesteps - modo test con muy pocos updates
     # Nota: el loop principal itera sobre "updates", cada uno recolecta N_STEPS de experiencia
+    # En la sección de total_timesteps (alrededor de línea 284-292):
     if args.test_mode:
-        # Solo 5 updates para verificar que funciona
-        Config.N_STEPS = 5
-        total_timesteps = 5  # 5 updates = 5 * N_STEPS timesteps reales del entorno
-        print(f"\n⚠️  MODO TEST: Solo {total_timesteps} updates ({total_timesteps * Config.N_STEPS:,} timesteps del entorno)")
+        # Reducir temporalmente N_STEPS y BATCH_SIZE para que sea MUY corto
+        original_n_steps = Config.N_STEPS
+        original_batch_size = Config.BATCH_SIZE
+        Config.N_STEPS = 64  # Reducir a 64 steps por update
+        Config.BATCH_SIZE = 32  # Reducir batch size también (debe ser <= N_STEPS)
+        total_timesteps = 1  # Solo 1 update
+        print(f"\nMODO TEST: Solo {total_timesteps} update con {Config.N_STEPS} steps/update = {total_timesteps * Config.N_STEPS} timesteps totales")
+        print(f"  Batch size ajustado a: {Config.BATCH_SIZE} (debe ser <= N_STEPS)")
     else:
-        # Calcular número de updates basado en TOTAL_TIMESTEPS
-        # TOTAL_TIMESTEPS es el número total de timesteps del entorno que queremos
         total_timesteps = Config.TOTAL_TIMESTEPS // Config.N_STEPS
         print(f"\n📊 Entrenamiento completo: {total_timesteps:,} updates ({Config.TOTAL_TIMESTEPS:,} timesteps del entorno)")
     
