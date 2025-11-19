@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "name": "Baseline",
+  "learning_rate": 0.0001,
+  "entropy_coef": 0.05,
+  "n_epochs": 4,
+  "hidden_size": 256,
+  "batch_size": 64
+}
