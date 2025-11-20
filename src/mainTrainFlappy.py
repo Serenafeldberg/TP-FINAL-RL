@@ -472,7 +472,7 @@ if __name__ == "__main__":
     print(f"{'='*80}\n")
 
     # Crear entorno una vez (se reutiliza)
-    env = gym.make(Config.ENV_NAME, render_mode="human", use_lidar=True)
+    env = gym.make(Config.ENV_NAME, render_mode=None, use_lidar=True)
 
     # Check-env: solo smoke test
     if args.check_env:
