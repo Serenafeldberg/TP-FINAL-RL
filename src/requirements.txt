@@ -1,9 +1,7 @@
 torch>=2.0.0
 
 gymnasium>=0.29.0
-# TODO: agregar el paquete específico del entorno Flappy Bird con LIDAR
-# Ejemplo: gym-flappy-bird-lidar>=0.1.0
-# o el nombre correcto del paquete que proporcione el entorno
+flappy-bird-gymnasium>=0.1.0
 
 numpy>=1.24.0
 matplotlib>=3.7.0
