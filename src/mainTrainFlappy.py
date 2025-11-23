@@ -169,7 +169,6 @@ class Logger:
     
     def log_episode(self, timestep, episode, reward, length):
         """Log info de episodio."""
-        print(f"📊 Logging episode: step={timestep}, ep={episode}, reward={reward:.2f}")
         with open(self.rewards_file, 'a') as f:
             f.write(f"{timestep},{episode},{reward},{length}\n")
     

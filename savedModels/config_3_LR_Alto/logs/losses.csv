@@ -1,1 +1,2 @@
 timestep,policy_loss,value_loss,entropy_loss,clip_fraction,approx_kl,learning_rate
+64,-1.1757947504520416e-08,4.893129199743271,-0.6931467577815056,0.0,-1.862645149230957e-09,0.0
