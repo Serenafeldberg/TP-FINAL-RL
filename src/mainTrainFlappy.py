@@ -174,7 +174,6 @@ class Logger:
     
     def log_update(self, timestep, metrics):
         """Log métricas de update."""
-        print(f"📈 Logging update: step={timestep}, metrics keys={list(metrics.keys())}")
         with open(self.losses_file, 'a') as f:
             f.write(
                 f"{timestep},"
