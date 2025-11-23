@@ -184,7 +184,6 @@ class Logger:
                 f"{metrics['approx_kl']},"
                 f"{metrics['learning_rate']}\n"
             )
-        print(f"✓ Update logged to {self.losses_file}")
 
 # Entrenamiento PPO
 
