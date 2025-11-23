@@ -424,20 +424,20 @@ def train(env, args, config_dict=None):
         
         # Log metrics - ARREGLAR TIMESTEP CALCULATION
         current_env_step = timestep * Config.N_STEPS
-        if timestep % Config.LOG_FREQ == 0:
-            logger.log_update(current_env_step, metrics)
-            entropy_val = -metrics['entropy_loss']
-            print(f"\n[Update @ {timestep:,} (env steps: {current_env_step:,})]")
-            print(f"  Policy Loss:   {metrics['policy_loss']:8.4f}")
-            print(f"  Value Loss:    {metrics['value_loss']:8.4f}")
-            print(f"  Entropy:       {entropy_val:8.4f}", end="")
-            if entropy_val < 0.01:
-                print(" ⚠️  WARNING: Entropy muy bajo - política casi determinística!")
-            else:
-                print()
-            print(f"  Clip Fraction: {metrics['clip_fraction']:8.3f}")
-            print(f"  Approx KL:     {metrics['approx_kl']:8.4f}")
-            print(f"  Learning Rate: {metrics['learning_rate']:.2e}\n")
+        # if timestep % Config.LOG_FREQ == 0:
+        logger.log_update(current_env_step, metrics)
+            # entropy_val = -metrics['entropy_loss']
+            # print(f"\n[Update @ {timestep:,} (env steps: {current_env_step:,})]")
+            # print(f"  Policy Loss:   {metrics['policy_loss']:8.4f}")
+            # print(f"  Value Loss:    {metrics['value_loss']:8.4f}")
+            # print(f"  Entropy:       {entropy_val:8.4f}", end="")
+            # if entropy_val < 0.01:
+            #     print(" ⚠️  WARNING: Entropy muy bajo - política casi determinística!")
+            # else:
+            #     print()
+            # print(f"  Clip Fraction: {metrics['clip_fraction']:8.3f}")
+            # print(f"  Approx KL:     {metrics['approx_kl']:8.4f}")
+            # print(f"  Learning Rate: {metrics['learning_rate']:.2e}\n")
         
         # Reset buffer para próximo rollout
         buffer.reset()
