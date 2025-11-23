@@ -553,6 +553,261 @@ def print_system_info() -> None:
     
     print("="*60 + "\n")
 
+# NORMALIZACIÓN DE OBSERVACIONES
+
+class RunningNorm:
+    """
+    Normalizador de observaciones usando estadísticas corrientes (running statistics).
+    
+    Implementa normalización Z-score: (x - mean) / std
+    Las estadísticas se actualizan incrementalmente usando el algoritmo de Welford.
+    
+    Mejoras sobre la implementación básica:
+    - Actualización en batch más eficiente
+    - Modo de evaluación (no actualiza estadísticas)
+    - Guardado/carga de estadísticas para reproducibilidad
+    - Manejo robusto de casos edge (std=0, etc.)
+    
+    Uso recomendado:
+        # Durante entrenamiento: actualizar al final de cada rollout
+        norm = RunningNorm(obs_shape)
+        for rollout in rollouts:
+            # Recolectar observaciones sin normalizar
+            obs_batch = collect_observations(...)
+            # Actualizar estadísticas con todo el batch
+            norm.update_batch(obs_batch)
+            # Normalizar para el siguiente rollout
+            obs_normalized = norm.normalize(obs_batch)
+    
+    Uso durante evaluación:
+        norm.eval()  # No actualizar estadísticas
+        obs_norm = norm.normalize(obs)
+    """
+    
+    def __init__(
+        self,
+        shape: tuple,
+        eps: float = 1e-8,
+        clip: Optional[float] = None
+    ):
+        """
+        Args:
+            shape: Forma de las observaciones (ej: (4,) para CartPole)
+            eps: Valor pequeño para evitar división por cero
+            clip: Si no None, clipea valores normalizados a [-clip, clip]
+        """
+        self.shape = shape if isinstance(shape, tuple) else (shape,)
+        self.eps = eps
+        self.clip = clip
+        
+        # Estadísticas corrientes
+        self.mean = np.zeros(self.shape, dtype=np.float64)
+        self.var = np.ones(self.shape, dtype=np.float64)  # Inicializar con var=1 (std=1)
+        self.count = eps  # Evitar división por cero
+        
+        # Modo de entrenamiento/evaluación
+        self.training = True
+    
+    def update(self, x: np.ndarray) -> None:
+        """
+        Actualiza las estadísticas con una sola observación.
+        
+        Args:
+            x: Observación de forma self.shape
+        """
+        if not self.training:
+            return
+        
+        x = np.asarray(x, dtype=np.float64)
+        if x.shape != self.shape:
+            raise ValueError(f"Expected shape {self.shape}, got {x.shape}")
+        
+        # Algoritmo de Welford para actualización incremental
+        self.count += 1
+        delta = x - self.mean
+        self.mean += delta / self.count
+        delta2 = x - self.mean
+        self.var += delta * delta2
+    
+    def update_batch(self, x: np.ndarray) -> None:
+        """
+        Actualiza las estadísticas con un batch de observaciones.
+        Más eficiente que llamar update() múltiples veces.
+        
+        Args:
+            x: Array de observaciones de forma (N, *self.shape) o (*self.shape,)
+        """
+        if not self.training:
+            return
+        
+        x = np.asarray(x, dtype=np.float64)
+        
+        # Manejar caso de observación única
+        if x.shape == self.shape:
+            self.update(x)
+            return
+        
+        # Verificar que las dimensiones coincidan
+        if x.shape[-len(self.shape):] != self.shape:
+            raise ValueError(f"Expected last dimensions to be {self.shape}, got {x.shape}")
+        
+        # Flatten para procesar batch
+        batch_size = int(np.prod(x.shape[:-len(self.shape)]))
+        x_flat = x.reshape(batch_size, *self.shape)
+        
+        # Calcular estadísticas del batch
+        batch_mean = x_flat.mean(axis=0)
+        batch_var = x_flat.var(axis=0, ddof=0)  # ddof=0 para varianza poblacional
+        batch_count = batch_size
+        
+        # Actualizar estadísticas globales usando fórmula de combinación
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+        
+        # Nueva media
+        new_mean = self.mean + delta * batch_count / tot_count
+        
+        # Nueva varianza (fórmula de combinación de varianzas)
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta ** 2 * self.count * batch_count / tot_count
+        new_var = M2 / tot_count
+        
+        self.mean = new_mean
+        self.var = new_var
+        self.count = tot_count
+    
+    def normalize(self, x: np.ndarray) -> np.ndarray:
+        """
+        Normaliza observaciones usando las estadísticas corrientes.
+        
+        Args:
+            x: Observación(es) de forma (*self.shape) o (N, *self.shape)
+        
+        Returns:
+            Observación(es) normalizada(s) de la misma forma
+        """
+        x = np.asarray(x, dtype=np.float32)
+        
+        # Calcular std (evitar división por cero)
+        std = np.sqrt(self.var) + self.eps
+        
+        # Normalizar
+        x_norm = (x - self.mean) / std
+        
+        # Clipear si se especificó
+        if self.clip is not None:
+            x_norm = np.clip(x_norm, -self.clip, self.clip)
+        
+        return x_norm.astype(np.float32)
+    
+    def denormalize(self, x_norm: np.ndarray) -> np.ndarray:
+        """
+        Desnormaliza observaciones normalizadas.
+        Útil para visualización o análisis.
+        
+        Args:
+            x_norm: Observación(es) normalizada(s)
+        
+        Returns:
+            Observación(es) original(es)
+        """
+        x_norm = np.asarray(x_norm, dtype=np.float64)
+        std = np.sqrt(self.var) + self.eps
+        x = x_norm * std + self.mean
+        return x.astype(np.float32)
+    
+    def reset(self) -> None:
+        """Resetea las estadísticas a valores iniciales."""
+        self.mean = np.zeros(self.shape, dtype=np.float64)
+        self.var = np.ones(self.shape, dtype=np.float64)
+        self.count = self.eps
+    
+    def train(self) -> None:
+        """Activa modo de entrenamiento (actualiza estadísticas)."""
+        self.training = True
+    
+    def eval(self) -> None:
+        """Activa modo de evaluación (no actualiza estadísticas)."""
+        self.training = False
+    
+    def get_stats(self) -> Dict[str, np.ndarray]:
+        """
+        Retorna las estadísticas actuales.
+        
+        Returns:
+            Dict con 'mean', 'std', 'count'
+        """
+        return {
+            'mean': self.mean.copy(),
+            'std': np.sqrt(self.var),
+            'count': self.count
+        }
+    
+    def set_stats(self, mean: np.ndarray, var: np.ndarray, count: float) -> None:
+        """
+        Establece las estadísticas manualmente.
+        Útil para cargar estadísticas guardadas.
+        
+        Args:
+            mean: Media
+            var: Varianza
+            count: Número de muestras
+        """
+        mean = np.asarray(mean, dtype=np.float64)
+        var = np.asarray(var, dtype=np.float64)
+        
+        if mean.shape != self.shape or var.shape != self.shape:
+            raise ValueError(f"Stats shape mismatch: mean={mean.shape}, var={var.shape}, expected={self.shape}")
+        
+        self.mean = mean.copy()
+        self.var = var.copy()
+        self.count = float(count)
+    
+    def save(self, path: str) -> None:
+        """
+        Guarda las estadísticas en un archivo numpy.
+        
+        Args:
+            path: Path donde guardar (.npz)
+        """
+        np.savez(
+            path,
+            mean=self.mean,
+            var=self.var,
+            count=self.count,
+            shape=self.shape,
+            eps=self.eps,
+            clip=self.clip
+        )
+    
+    def load(self, path: str) -> None:
+        """
+        Carga estadísticas desde un archivo numpy.
+        
+        Args:
+            path: Path al archivo .npz
+        """
+        data = np.load(path)
+        self.mean = data['mean']
+        self.var = data['var']
+        self.count = float(data['count'])
+        
+        # Verificar que la forma coincida
+        loaded_shape = tuple(data['shape'])
+        if loaded_shape != self.shape:
+            raise ValueError(f"Shape mismatch: loaded {loaded_shape}, expected {self.shape}")
+        
+        if 'eps' in data:
+            self.eps = float(data['eps'])
+        if 'clip' in data:
+            self.clip = float(data['clip']) if not np.isnan(data['clip']) else None
+    
+    def __repr__(self) -> str:
+        mode = "train" if self.training else "eval"
+        return f"RunningNorm(shape={self.shape}, count={self.count:.0f}, mode={mode})"
+
+
 # TESTING
 
 def test_utils():
@@ -652,6 +907,58 @@ def test_utils():
     # System info
     print("\n11. Testing system info:")
     print_system_info()
+    
+    # Test RunningNorm
+    print("\n12. Testing RunningNorm:")
+    norm = RunningNorm(shape=(4,))
+    
+    # Test update single
+    obs1 = np.array([1.0, 2.0, 3.0, 4.0])
+    norm.update(obs1)
+    assert norm.count > 0, "Count should increase"
+    print("   ✓ Single update works")
+    
+    # Test update batch
+    obs_batch = np.random.randn(10, 4).astype(np.float32)
+    norm.update_batch(obs_batch)
+    assert norm.count > 10, "Count should increase with batch"
+    print("   ✓ Batch update works")
+    
+    # Test normalize
+    obs_norm = norm.normalize(obs1)
+    assert obs_norm.shape == obs1.shape, "Normalized shape should match"
+    assert np.abs(obs_norm.mean()) < 1.0, "Normalized should be roughly zero-mean"
+    print("   ✓ Normalize works")
+    
+    # Test denormalize
+    obs_denorm = norm.denormalize(obs_norm)
+    assert np.allclose(obs_denorm, obs1, atol=1e-5), "Denormalize should recover original"
+    print("   ✓ Denormalize works")
+    
+    # Test eval mode
+    norm.eval()
+    old_mean = norm.mean.copy()
+    norm.update(obs1)
+    assert np.allclose(norm.mean, old_mean), "Eval mode should not update stats"
+    print("   ✓ Eval mode works")
+    
+    # Test save/load
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.npz', delete=False) as f:
+        temp_path = f.name
+    
+    norm.train()  # Back to training mode
+    norm.save(temp_path)
+    norm2 = RunningNorm(shape=(4,))
+    norm2.load(temp_path)
+    assert np.allclose(norm.mean, norm2.mean), "Loaded mean should match"
+    assert np.allclose(norm.var, norm2.var), "Loaded var should match"
+    print("   ✓ Save/load works")
+    
+    import os
+    os.unlink(temp_path)
+    
+    print("   ✓ RunningNorm tests passed")
     
     print("\n" + "="*60)
     print("✓ All utils tests passed!")

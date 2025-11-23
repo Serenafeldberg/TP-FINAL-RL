@@ -21,7 +21,7 @@ import gymnasium as gym
 
 import flappy_bird_gymnasium
 from config import Config
-from ppoAgent.utils import set_seed, print_system_info
+from ppoAgent.utils import set_seed, print_system_info, RunningNorm
 #from envs.wrappers import make_env
 from ppoAgent.actorCritic import ActorCritic
 from ppoAgent.ppo import PPO
@@ -250,13 +250,13 @@ def train(env, args, config_dict=None):
     action_dim = env.action_space.n if hasattr(env.action_space, 'n') else env.action_space.shape[0]
     action_type = "discrete" if hasattr(env.action_space, 'n') else "continuous"
     
-    print(f"\n[1/5] Environment Info:")
+    print(f"\n[1/6] Environment Info:")
     print(f"  Observation shape: {obs_shape}")
     print(f"  Action dim: {action_dim}")
     print(f"  Action type: {action_type}")
     
     # Crear Actor-Critic
-    print(f"\n[2/5] Creando redes Actor-Critic (MLP)...")
+    print(f"\n[2/6] Creando redes Actor-Critic (MLP)...")
     actor_critic = ActorCritic(
         obs_shape=obs_shape,
         action_dim=action_dim,
@@ -268,7 +268,7 @@ def train(env, args, config_dict=None):
     print(f"  Total parámetros: {total_params:,}")
     
     # Crear agente PPO
-    print(f"\n[3/5] Inicializando PPO...")
+    print(f"\n[3/6] Inicializando PPO...")
     agent = PPO(
         actor_critic=actor_critic,
         learning_rate=Config.LEARNING_RATE,
@@ -286,7 +286,7 @@ def train(env, args, config_dict=None):
         agent.load(args.load_model)
     
     # Crear buffer
-    print(f"\n[4/5] Creando rollout buffer...")
+    print(f"\n[4/6] Creando rollout buffer...")
     buffer_size = Config.N_STEPS * Config.N_ENVS
     if Config.BATCH_SIZE > buffer_size:
         print(f"WARNING: BATCH_SIZE ({Config.BATCH_SIZE}) > buffer_size ({buffer_size})")
@@ -312,8 +312,13 @@ def train(env, args, config_dict=None):
         total_timesteps = Config.TOTAL_TIMESTEPS // Config.N_STEPS
         print(f"\n📊 Entrenamiento completo: {total_timesteps:,} updates ({Config.TOTAL_TIMESTEPS:,} timesteps del entorno)")
     
+    # Crear normalizador de observaciones
+    print(f"\n[5/6] Inicializando normalizador de observaciones...")
+    obs_norm = RunningNorm(obs_shape)
+    print(f"  Normalización activada: RunningNorm con shape {obs_shape}")
+    
     # Variables de tracking
-    print(f"\n[5/5] Iniciando entrenamiento...")
+    print(f"\n[6/6] Iniciando entrenamiento...")
     print(f"  Total timesteps: {total_timesteps:,}")
     print(f"  Steps per rollout: {Config.N_STEPS}")
     print(f"  Batch size: {Config.BATCH_SIZE}")
@@ -331,20 +336,28 @@ def train(env, args, config_dict=None):
     for timestep in range(1, total_timesteps + 1):
         
         # === ROLLOUT PHASE ===
+        # Recolectar observaciones SIN normalizar primero
+        obs_batch = []
+        
         # Recolectar N_STEPS de experiencia, osea trayectorias usando la politica actual
         for step in range(Config.N_STEPS):
+            # Guardar observación original (sin normalizar) para actualizar estadísticas después
+            obs_batch.append(obs.copy())
+            
+            # Normalizar solo para usar en el agente
+            obs_normalized = obs_norm.normalize(obs)
+            
             #seleccionar acción (usando la politica actual)
-            #obs = obs / 400.0   # si tus distancias están en px (0–400)
-            obs_normalized = (obs - obs.mean()) / (obs.std() + 1e-8)
             action, log_prob, value = agent.get_action(obs_normalized)
             
-            #ejecuto la accion en el environment
+            #ejecuto la accion en the environment
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             
             # Almacenar en buffer la transición (s, a, r, s', done)
+            # IMPORTANTE: Guardar observación normalizada en el buffer
             buffer.add(
-                obs=obs_normalized,  # Usar observación normalizada
+                obs=torch.as_tensor(obs_normalized, dtype=torch.float32, device=Config.DEVICE),
                 action=action,
                 log_prob=log_prob, #guardo log probabilidad de la accion
                 reward=reward,
@@ -380,10 +393,14 @@ def train(env, args, config_dict=None):
                 episode_length = 0
                 episode_count += 1
         
+        # === ACTUALIZAR ESTADÍSTICAS DE NORMALIZACIÓN ===
+        # Actualizar estadísticas con todo el batch al final del rollout
+        obs_norm.update_batch(np.array(obs_batch))
+        
         # === COMPUTE ADVANTAGES ===
         # Necesitamos el valor del último estado para bootstrap
         with torch.no_grad():
-            obs_normalized = (obs - obs.mean()) / (obs.std() + 1e-8)
+            obs_normalized = obs_norm.normalize(obs)
             obs_tensor = torch.as_tensor(obs_normalized, dtype=torch.float32, device=Config.DEVICE).unsqueeze(0)
             last_value = agent.actor_critic.get_value(obs_tensor).item()
         
@@ -435,6 +452,11 @@ def train(env, args, config_dict=None):
     final_path = os.path.join(model_dir, model_name)
     agent.save(final_path)
     print(f"\n✓ Modelo final guardado en: {final_path}")
+    
+    # Guardar estadísticas de normalización
+    norm_stats_path = os.path.join(model_dir, f"obs_norm_stats_{config_name if config_dict else 'default'}.npz")
+    obs_norm.save(norm_stats_path)
+    print(f"✓ Estadísticas de normalización guardadas en: {norm_stats_path}")
     
     # Stats finales
     total_time = time.time() - start_time
