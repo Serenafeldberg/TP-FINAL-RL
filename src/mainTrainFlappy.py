@@ -157,6 +157,10 @@ class Logger:
         self.losses_file = self.log_dir / "losses.csv"
         
         # Inicializar archivos
+        print(f"🔍 Inicializando logger en: {self.log_dir}")
+        print(f"  → rewards.csv: {self.rewards_file}")
+        print(f"  → losses.csv: {self.losses_file}")
+        
         with open(self.rewards_file, 'w') as f:
             f.write("timestep,episode,reward,length\n")
         
@@ -165,11 +169,13 @@ class Logger:
     
     def log_episode(self, timestep, episode, reward, length):
         """Log info de episodio."""
+        print(f"📊 Logging episode: step={timestep}, ep={episode}, reward={reward:.2f}")
         with open(self.rewards_file, 'a') as f:
             f.write(f"{timestep},{episode},{reward},{length}\n")
     
     def log_update(self, timestep, metrics):
         """Log métricas de update."""
+        print(f"📈 Logging update: step={timestep}, metrics keys={list(metrics.keys())}")
         with open(self.losses_file, 'a') as f:
             f.write(
                 f"{timestep},"
@@ -180,6 +186,7 @@ class Logger:
                 f"{metrics['approx_kl']},"
                 f"{metrics['learning_rate']}\n"
             )
+        print(f"✓ Update logged to {self.losses_file}")
 
 # Entrenamiento PPO
 
@@ -205,6 +212,29 @@ def train(env, args, config_dict=None):
         print(f"  N Epochs: {Config.N_EPOCHS}")
         print(f"  Hidden Size: {Config.HIDDEN_SIZE}")
         print(f"  Batch Size: {Config.BATCH_SIZE}")
+    
+    # ESTRUCTURA DE CARPETAS CORREGIDA
+    # Crear estructura: savedModels/config_1_Baseline/, savedModels/config_2_Mayor_Entropia/, etc.
+    if config_dict:
+        config_folder_name = f"config_{config_dict['id']}_{config_dict['name']}"
+        model_dir = os.path.join("savedModels", config_folder_name)
+        log_dir = os.path.join(model_dir, "logs")
+    else:
+        model_dir = Config.MODEL_DIR
+        log_dir = Config.LOG_DIR
+    
+    # Crear directorios
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    print(f"  → Modelos se guardarán en: {model_dir}")
+    print(f"  → Logs se guardarán en: {log_dir}")
+    
+    # Guardar configuración en JSON
+    if config_dict:
+        config_file = os.path.join(model_dir, "config.json")
+        with open(config_file, 'w') as f:
+            json.dump(config_dict, f, indent=2)
     
     # Ajustar para modo test ANTES de crear el buffer
     if args.test_mode:
@@ -270,23 +300,8 @@ def train(env, args, config_dict=None):
         device=Config.DEVICE
     )
     
-    # Logger - usar directorio específico de la configuración
-    if config_dict:
-        # Guardar en savedModels/search/config_N/
-        config_model_dir = os.path.join(Config.MODEL_DIR, "search", f"config_{config_dict['id']}_{config_dict['name']}")
-        config_log_dir = os.path.join(config_model_dir, "logs")
-        os.makedirs(config_model_dir, exist_ok=True)
-        os.makedirs(config_log_dir, exist_ok=True)
-        Config.MODEL_DIR = config_model_dir
-        Config.LOG_DIR = config_log_dir
-        
-        # Guardar configuración en JSON
-        config_file = os.path.join(config_model_dir, "config.json")
-        with open(config_file, 'w') as f:
-            json.dump(config_dict, f, indent=2)
-        print(f"  → Modelos se guardarán en: {config_model_dir}")
-    
-    logger = Logger(Config.LOG_DIR)
+    # Logger - usar los directorios ya definidos arriba
+    logger = Logger(log_dir)
     
     # Total timesteps - modo test con muy pocos updates
     # Nota: el loop principal itera sobre "updates", cada uno recolecta N_STEPS de experiencia
@@ -320,8 +335,8 @@ def train(env, args, config_dict=None):
         for step in range(Config.N_STEPS):
             #seleccionar acción (usando la politica actual)
             #obs = obs / 400.0   # si tus distancias están en px (0–400)
-            obs = (obs - obs.mean()) / (obs.std() + 1e-8)
-            action, log_prob, value = agent.get_action(obs)
+            obs_normalized = (obs - obs.mean()) / (obs.std() + 1e-8)
+            action, log_prob, value = agent.get_action(obs_normalized)
             
             #ejecuto la accion en el environment
             next_obs, reward, terminated, truncated, info = env.step(action)
@@ -329,7 +344,7 @@ def train(env, args, config_dict=None):
             
             # Almacenar en buffer la transición (s, a, r, s', done)
             buffer.add(
-                obs=obs,
+                obs=obs_normalized,  # Usar observación normalizada
                 action=action,
                 log_prob=log_prob, #guardo log probabilidad de la accion
                 reward=reward,
@@ -345,13 +360,14 @@ def train(env, args, config_dict=None):
             # Si el episodio terminó
             if done:
                 # Log episodio
-                logger.log_episode(timestep, episode_count, episode_reward, episode_length)
+                total_env_steps = timestep * Config.N_STEPS + step
+                logger.log_episode(total_env_steps, episode_count, episode_reward, episode_length)
                 
                 if episode_count % 10 == 0:
                     elapsed = time.time() - start_time
-                    fps = timestep / elapsed if elapsed > 0 else 0
+                    fps = total_env_steps / elapsed if elapsed > 0 else 0
                     print(
-                        f"Timestep: {timestep:7,} | "
+                        f"Timestep: {total_env_steps:7,} | "
                         f"Episode: {episode_count:4d} | "
                         f"Reward: {episode_reward:8.2f} | "
                         f"Length: {episode_length:4d} | "
@@ -367,7 +383,8 @@ def train(env, args, config_dict=None):
         # === COMPUTE ADVANTAGES ===
         # Necesitamos el valor del último estado para bootstrap
         with torch.no_grad():
-            obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=Config.DEVICE).unsqueeze(0)
+            obs_normalized = (obs - obs.mean()) / (obs.std() + 1e-8)
+            obs_tensor = torch.as_tensor(obs_normalized, dtype=torch.float32, device=Config.DEVICE).unsqueeze(0)
             last_value = agent.actor_critic.get_value(obs_tensor).item()
         
         # Compute returns y advantages usando GAE (combina TD y monte carlo)
@@ -388,16 +405,17 @@ def train(env, args, config_dict=None):
             current_timestep=timestep
         )
         
-        # Log metrics
+        # Log metrics - ARREGLAR TIMESTEP CALCULATION
+        current_env_step = timestep * Config.N_STEPS
         if timestep % Config.LOG_FREQ == 0:
-            logger.log_update(timestep, metrics)
+            logger.log_update(current_env_step, metrics)
             entropy_val = -metrics['entropy_loss']
-            print(f"\n[Update @ {timestep:,}]")
+            print(f"\n[Update @ {timestep:,} (env steps: {current_env_step:,})]")
             print(f"  Policy Loss:   {metrics['policy_loss']:8.4f}")
             print(f"  Value Loss:    {metrics['value_loss']:8.4f}")
             print(f"  Entropy:       {entropy_val:8.4f}", end="")
             if entropy_val < 0.01:
-                print("WARNING: Entropy muy bajo - política casi determinista!")
+                print(" ⚠️  WARNING: Entropy muy bajo - política casi determinística!")
             else:
                 print()
             print(f"  Clip Fraction: {metrics['clip_fraction']:8.3f}")
@@ -409,12 +427,12 @@ def train(env, args, config_dict=None):
         
         # === SAVE MODEL ===
         if not args.test_mode and timestep % Config.SAVE_FREQ == 0:
-            save_path = os.path.join(Config.MODEL_DIR, f"ppo_flappy_{timestep}.pth")
+            save_path = os.path.join(model_dir, f"ppo_flappy_{timestep}.pth")
             agent.save(save_path)
     
     # Guardar modelo final
     model_name = f"ppo_flappy_{config_name}_final.pth" if config_dict else "ppo_flappy_final.pth"
-    final_path = os.path.join(Config.MODEL_DIR, model_name)
+    final_path = os.path.join(model_dir, model_name)
     agent.save(final_path)
     print(f"\n✓ Modelo final guardado en: {final_path}")
     
@@ -423,7 +441,7 @@ def train(env, args, config_dict=None):
     print("\n" + "=" * 60)
     print("ENTRENAMIENTO COMPLETADO")
     print(f"Tiempo total: {total_time/60:.1f} minutos")
-    print(f"FPS promedio: {total_timesteps/total_time:.0f}")
+    print(f"FPS promedio: {(total_timesteps * Config.N_STEPS)/total_time:.0f}")
     print(f"Episodios totales: {episode_count}")
     print("=" * 60)
 
@@ -498,6 +516,6 @@ if __name__ == "__main__":
     
     print(f"\n{'='*80}")
     print("TODAS LAS CONFIGURACIONES COMPLETADAS")
-    print(f"Resultados guardados en: {os.path.join(Config.MODEL_DIR, 'search')}")
+    print(f"Resultados guardados en: savedModels/")
     print(f"{'='*80}\n")
 
