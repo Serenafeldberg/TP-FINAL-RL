@@ -6,7 +6,7 @@ authors = [
     {name = "Serena", email = "serena@example.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.8.1"
+requires-python = ">=3.9"
 dependencies = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
@@ -42,7 +42,7 @@ build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py39']
 
 [tool.isort]
 profile = "black"
