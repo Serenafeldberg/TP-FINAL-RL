@@ -1,0 +1,39 @@
+1 - El cambio a timestep confirma la diferencia real en sample-efficiency
+
+Ahora que todas las curvas están correctamente alineadas por cantidad de interacción con el entorno, podemos comparar sin distorsión.
+
+Lo que se ve:
+
+Config 4 (naranja)
+
+Aprende más lento al inicio, pero después del 0.4M empieza un ascenso limpio y sostenido.
+
+No tiene colapsos abruptos, no explota, no cae a 0.
+
+Hacia el 1M steps está prácticamente empatando o apenas por debajo del máximo de la baseline, pero con mucho más consistency.
+
+Mínimo ruido comparado con LR alto (verde) y Baseline (azul).
+
+Esta forma de curva es la típica del modelo con mejor capacidad y con mejor asintótico.
+
+2 - Baseline (azul) tiene mejor pico pero es inestable
+
+En RL siempre hay que desconfiar de las configuraciones que:
+
+suben muy rápido,
+
+pegan picos gigantes,
+
+… y después bajan o oscilan fuerte.
+
+Eso suele indicar policy collapse, mal control de clipping o un LR muy alto respecto a la arquitectura.
+
+En tu gráfico, config 1 tiene:
+
+grandes picos,
+
+grandes caídas,
+
+forma "diente de sierra" → típico de inestabilidad en PPO.
+
+Este tipo de curva NO es adecuada para un hiperparámetro final

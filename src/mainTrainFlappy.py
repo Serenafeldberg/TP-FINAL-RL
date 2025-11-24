@@ -31,52 +31,99 @@ from ppoAgent.memory import RolloutBuffer
 # ============================================================================
 # CONFIGURACIONES DE HIPERPARÁMETROS
 # ============================================================================
+
 HYPERPARAM_CONFIGS = [
+#    {
+#        'id': 1,
+#        'name': 'Baseline',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 2,
+#        'name': 'Mayor_Entropia',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.1,
+#        'n_epochs': 4,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 3,
+#        'name': 'LR_Alto',
+#        'learning_rate': 3e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 4,
+#        'name': 'Red_Grande',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 5,
+#        'name': 'Mas_Epocas',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 8,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
     {
-        'id': 1,
-        'name': 'Baseline',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 2,
-        'name': 'Mayor_Entropia',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.1,
-        'n_epochs': 4,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 3,
-        'name': 'LR_Alto',
-        'learning_rate': 3e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 4,
-        'name': 'Red_Grande',
-        'learning_rate': 1e-4,
+        'id': 6,
+        'name': 'Red_Grande_LR_Bajo',
+        'learning_rate': 5e-5,   # más estable, pasos más chiquitos
         'entropy_coef': 0.05,
         'n_epochs': 4,
         'hidden_size': 512,
         'batch_size': 64,
     },
     {
-        'id': 5,
-        'name': 'Mas_Epocas',
+        'id': 7,
+        'name': 'Red_Grande_Mayor_Entropia',
         'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 8,
-        'hidden_size': 256,
+        'entropy_coef': 0.08,   # entre baseline (0.05) y config 2 (0.1)
+        'n_epochs': 4,
+        'hidden_size': 512,
         'batch_size': 64,
     },
+    {
+        'id': 8,
+        'name': 'Red_Grande_Menos_Epocas',
+        'learning_rate': 1e-4,
+        'entropy_coef': 0.05,
+        'n_epochs': 2,          # menos pasadas por buffer, menos overfitting
+        'hidden_size': 512,
+        'batch_size': 64,
+    },
+    {
+        'id': 9,
+        'name': 'Red_Grande_Batch_Grande',
+        'learning_rate': 1e-4,
+        'entropy_coef': 0.05,
+        'n_epochs': 4,
+        'hidden_size': 512,
+        'batch_size': 128,      # verificar que sea <= N_STEPS * N_ENVS
+    },
+    {
+        'id': 10,
+        'name': 'Red_Grande_LR_Alto_Suave',
+        'learning_rate': 2e-4,  # un intermedio entre 1e-4 y 3e-4
+        'entropy_coef': 0.05,
+        'n_epochs': 4,
+        'hidden_size': 512,
+        'batch_size': 64,
+    },
+    
 ]
 
 

@@ -280,11 +280,17 @@ def main():
     fig_summary = plot_combined_summary(rewards_df, losses_df, window_size=100,
                                         save_path=output_dir / "summary.png")
     
+    # Comparar configuraciones
+    print(f"\n🔍 Comparando configuraciones...")
+    fig_comparison = plot_compare_configs(window_size=100,
+                                         save_path=output_dir / "comparison_configs.png")
+    
     print(f"\n✅ Visualizaciones completadas!")
     print(f"   Archivos guardados en: {output_dir}")
     print(f"\n   - rewards.png: Recompensas y longitudes")
     print(f"   - losses.png: Todas las pérdidas y métricas")
     print(f"   - summary.png: Resumen combinado")
+    print(f"   - comparison_configs.png: Comparación de configuraciones")
     
     # Mostrar estadísticas
     print(f"\n📊 Estadísticas:")
@@ -302,6 +308,110 @@ def main():
     
     # Mostrar gráficos
     plt.show()
+
+
+def plot_compare_configs(window_size=100, save_path=None):
+    """
+    Comparar las curvas de recompensa de todas las configuraciones.
+    
+    Args:
+        window_size: tamaño de ventana para promedio móvil
+        save_path: ruta para guardar la figura (opcional)
+    """
+    config_names = [
+        "config_1_Baseline",
+        "config_2_Mayor_Entropia",
+        "config_3_LR_Alto",
+        "config_4_Red_Grande",
+        "config_5_Mas_Epocas"
+    ]
+    
+    colors = ['blue', 'red', 'green', 'orange', 'purple']
+    
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # AX1: Todos los promedios móviles juntos
+    ax1 = axes[0]
+    # AX2: Solo recompensas individuales
+    ax2 = axes[1]
+    
+    config_stats = []
+    
+    for config_name, color in zip(config_names, colors):
+        rewards_path = Path(__file__).parent.parent.parent / "savedModels" / config_name / "logs" / "rewards.csv"
+        
+        if not rewards_path.exists():
+            print(f"⚠️  No se encontró: {rewards_path}")
+            continue
+        
+        try:
+            rewards_df = pd.read_csv(rewards_path)
+            timesteps = rewards_df['timestep'].values
+            rewards = rewards_df['reward'].values
+            
+            # Calcular promedio móvil
+            if len(rewards) >= window_size:
+                ma_rewards = moving_average(rewards, window_size)
+            else:
+                ma_rewards = rewards
+            
+            # Graficar promedio móvil en AX1
+            ax1.plot(timesteps, ma_rewards, color=color, linewidth=2.5, 
+                    label=config_name, alpha=0.8)
+            
+            # Graficar recompensas individuales en AX2 (semitransparente)
+            ax2.plot(timesteps, rewards, color=color, alpha=0.2, linewidth=0.8)
+            ax2.plot(timesteps, ma_rewards, color=color, linewidth=2, 
+                    label=config_name, alpha=0.8)
+            
+            # Estadísticas
+            final_avg = np.mean(rewards[-window_size:]) if len(rewards) >= window_size else np.mean(rewards)
+            max_reward = np.max(rewards)
+            
+            config_stats.append({
+                'config': config_name,
+                'final_avg': final_avg,
+                'max_reward': max_reward,
+                'episodes': len(rewards)
+            })
+            
+            print(f"✓ {config_name}: {len(rewards)} episodios, promedio final: {final_avg:.2f}, máximo: {max_reward:.2f}")
+            
+        except Exception as e:
+            print(f"❌ Error al procesar {config_name}: {e}")
+    
+    # Configurar AX1: Promedio móvil
+    ax1.set_xlabel('Timestep', fontsize=12)
+    ax1.set_ylabel('Recompensa (Promedio Móvil)', fontsize=12)
+    ax1.set_title(f'Comparación de Configuraciones - Promedio Móvil ({window_size} episodios)', 
+                 fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=10, loc='best')
+    ax1.grid(True, alpha=0.3)
+    
+    # Configurar AX2: Recompensas individuales + promedio
+    ax2.set_xlabel('Timestep', fontsize=12)
+    ax2.set_ylabel('Recompensa', fontsize=12)
+    ax2.set_title('Comparación de Configuraciones - Todos los Datos', 
+                 fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=10, loc='best')
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"\n✓ Gráfico guardado en: {save_path}")
+    
+    # Mostrar tabla comparativa
+    print("\n" + "="*80)
+    print("RESUMEN COMPARATIVO")
+    print("="*80)
+    if config_stats:
+        stats_df = pd.DataFrame(config_stats)
+        print(stats_df.to_string(index=False))
+        print("="*80)
+    
+    return fig
 
 
 if __name__ == "__main__":
