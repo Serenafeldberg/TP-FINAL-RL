@@ -319,14 +319,15 @@ def plot_compare_configs(window_size=100, save_path=None):
         save_path: ruta para guardar la figura (opcional)
     """
     config_names = [
-        "config_1_Baseline",
-        "config_2_Mayor_Entropia",
-        "config_3_LR_Alto",
         "config_4_Red_Grande",
-        "config_5_Mas_Epocas"
+        "config_6_Red_Grande_LR_Bajo",
+        "config_7_Red_Grande_Mayor_Entropia",
+        "config_8_Red_Grande_Menos_Epocas",
+        "config_9_Red_Grande_Batch_Grande",
+        "config_10_Red_Grande_LR_Alto_Suave"
     ]
     
-    colors = ['blue', 'red', 'green', 'orange', 'purple']
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown']
     
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     
