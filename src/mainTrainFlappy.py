@@ -468,8 +468,9 @@ def train(env, args, config_dict=None):
                 if episode_count % 10 == 0:
                     elapsed = time.time() - start_time
                     fps = total_env_steps / elapsed if elapsed > 0 else 0
+                    config_prefix = f"Config {config_dict['id']}:" if config_dict else "Default:"
                     print(
-                        f"Timestep: {total_env_steps:7,} | "
+                        f"{config_prefix} Timestep: {total_env_steps:7,} | "
                         f"Episode: {episode_count:4d} | "
                         f"Reward: {episode_reward:8.2f} | "
                         f"Length: {episode_length:4d} | "
