@@ -1,4 +1,6 @@
-torch>=2.0.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.1.0+cpu
 
 gymnasium>=0.29.0
 flappy-bird-gymnasium>=0.1.0
