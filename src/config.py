@@ -29,7 +29,7 @@ class Config:
     N_EVAL_EPISODES = 10
 
     # MODEL ARCHITECTURE (MLP para observaciones vectoriales)
-    HIDDEN_SIZE = 256  # Tamaño de capas ocultas de la MLP
+    HIDDEN_SIZE = 1024  # Tamaño de capas ocultas de la MLP
 
     # PATHS
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # src/

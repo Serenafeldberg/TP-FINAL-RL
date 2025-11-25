@@ -8,6 +8,7 @@ Uso:
 import sys
 from pathlib import Path
 import argparse
+import flappy_bird_gymnasium
 
 src_path = Path(__file__).parent
 if str(src_path) not in sys.path:
@@ -152,7 +153,8 @@ def evaluate(
     model_path: str,
     n_episodes: int = 10,
     render: bool = False,
-    deterministic: bool = True
+    deterministic: bool = True,
+    debug: bool = False,
 ):
     """
     Evaluar un modelo PPO guardado en Flappy Bird.
@@ -177,12 +179,8 @@ def evaluate(
     if render:
         env_kwargs['render_mode'] = 'human'
     
-    env = make_env(
-        env_id=Config.ENV_NAME,
-        seed=Config.SEED,
-        **env_kwargs
-    )
-    
+    env = gym.make(Config.ENV_NAME, render_mode=None, use_lidar=True)
+
     obs_shape = env.observation_space.shape
     action_dim = env.action_space.n if hasattr(env.action_space, 'n') else env.action_space.shape[0]
     action_type = "discrete" if hasattr(env.action_space, 'n') else "continuous"
@@ -192,20 +190,93 @@ def evaluate(
     
     # Crear modelo
     print("\n[2/3] Cargando modelo...")
+
+    # 1) Cargar checkpoint primero para inferir arquitectura (hidden size)
+    try:
+        checkpoint = torch.load(model_path, map_location=Config.DEVICE)
+    except Exception as e:
+        print(f"❌ Error cargando checkpoint: {e}")
+        raise
+
+    state_dict = checkpoint.get('actor_critic_state_dict', checkpoint)
+
+    # Intentar inferir hidden size desde las keys más comunes
+    inferred_hidden = None
+    if isinstance(state_dict, dict):
+        if 'feature_extractor.0.weight' in state_dict:
+            inferred_hidden = state_dict['feature_extractor.0.weight'].shape[0]
+        elif 'shared_fc.0.weight' in state_dict:
+            inferred_hidden = state_dict['shared_fc.0.weight'].shape[0]
+        elif 'actor_head.weight' in state_dict:
+            # actor_head.weight shape is (action_dim, hidden)
+            inferred_hidden = state_dict['actor_head.weight'].shape[1]
+
+    if inferred_hidden is None:
+        inferred_hidden = Config.HIDDEN_SIZE
+
+    print(f"  Using hidden_size={inferred_hidden} (Config.HIDDEN_SIZE={Config.HIDDEN_SIZE})")
+
     actor_critic = ActorCritic(
         obs_shape=obs_shape,
         action_dim=action_dim,
         action_type=action_type,
-        hidden_size=Config.HIDDEN_SIZE
+        hidden_size=inferred_hidden
     )
-    
+
     agent = PPO(
         actor_critic=actor_critic,
         device=Config.DEVICE
     )
-    
-    agent.load(model_path)
+
+    # Cargar pesos en el agente
+    try:
+        agent.load(model_path)
+    except RuntimeError as e:
+        print("⚠️  Load error (trying strict=False to diagnose):", e)
+        agent.actor_critic.load_state_dict(state_dict, strict=False)
+
     agent.actor_critic.eval()  # modo evaluación
+
+    # 2) Intentar cargar estadísticas de normalización si existen
+    obs_norm_mean = None
+    obs_norm_std = None
+    try:
+        model_dir = Path(model_path).parent
+        # buscar archivos obs_norm_stats*.npz en la carpeta del modelo
+        candidates = list(model_dir.glob('obs_norm_stats*.npz'))
+        if candidates:
+            stats_path = candidates[0]
+            print(f"  Cargando stats de normalización: {stats_path}")
+            stats = np.load(stats_path)
+            # buscar nombres comunes
+            mean = None
+            std = None
+            # mean stored under common names
+            for k in ('mean','obs_mean','running_mean','mu'):
+                if k in stats:
+                    mean = stats[k]
+                    break
+            # std may be stored directly or as variance ('var') depending on RunningNorm.save
+            for k in ('std','obs_std','running_std','sigma'):
+                if k in stats:
+                    std = stats[k]
+                    break
+            # support case where variance was saved as 'var' (RunningNorm.save uses 'var')
+            if std is None and 'var' in stats:
+                var = stats['var']
+                try:
+                    std = np.sqrt(var)
+                except Exception:
+                    std = np.sqrt(np.asarray(var, dtype=np.float32))
+
+            if mean is not None and std is not None:
+                obs_norm_mean = mean
+                obs_norm_std = std
+                print(f"  Normalización cargada (mean shape {obs_norm_mean.shape}, std shape {obs_norm_std.shape})")
+            else:
+                print("  Archivo de stats encontrado pero no contiene keys de mean/std reconocidas.")
+    except Exception as e:
+        print(f"  No se pudieron cargar stats de normalización: {e}")
     
     # Evaluar
     print("\n[3/3] Evaluando...")
@@ -216,13 +287,47 @@ def evaluate(
     
     for episode in range(n_episodes):
         obs, _ = env.reset()
+        if debug:
+            print(f"\n--- DEBUG: Episode {episode + 1} reset ---")
+            print("raw obs[:10] ->", np.asarray(obs, dtype=np.float32).ravel()[:10])
+            print("raw obs stats -> min:{:.4f} max:{:.4f} mean:{:.4f}".format(
+                  float(np.min(np.asarray(obs))), float(np.max(np.asarray(obs))), float(np.mean(np.asarray(obs)))))
+        # Aplicar normalización si cargamos stats
+        if obs_norm_mean is not None and obs_norm_std is not None:
+            try:
+                obs = (np.asarray(obs, dtype=np.float32) - obs_norm_mean) / (obs_norm_std + 1e-8)
+            except Exception:
+                # si shapes no coinciden, intentar flatten
+                obs = (np.asarray(obs, dtype=np.float32).ravel() - obs_norm_mean.ravel()) / (obs_norm_std.ravel() + 1e-8)
         done = False
         episode_reward = 0.0
         episode_length = 0
         
         while not done:
             # Seleccionar acción
-            action, _, _ = agent.get_action(obs, deterministic=deterministic)
+            # Normalizar observación antes de pasarla a la política
+            obs_for_action = obs
+            if obs_norm_mean is not None and obs_norm_std is not None:
+                try:
+                    obs_for_action = (np.asarray(obs, dtype=np.float32) - obs_norm_mean) / (obs_norm_std + 1e-8)
+                except Exception:
+                    obs_for_action = (np.asarray(obs, dtype=np.float32).ravel() - obs_norm_mean.ravel()) / (obs_norm_std.ravel() + 1e-8)
+
+            if debug:
+                # mostrar stats de la observación que entra a la red
+                a = np.asarray(obs_for_action, dtype=np.float32)
+                print("obs_for_action[:10] ->", a.ravel()[:10])
+                print("obs_for_action stats -> min:{:.4f} max:{:.4f} mean:{:.4f}".format(
+                      float(np.min(a)), float(np.max(a)), float(np.mean(a))))
+                # mostrar acción determinista y una estocástica para comparar
+                try:
+                    act_det, *_ = agent.get_action(obs_for_action, deterministic=True)
+                    act_sto, *_ = agent.get_action(obs_for_action, deterministic=False)
+                    print(f"action deterministic: {act_det} | action stochastic(sample): {act_sto}")
+                except Exception as e:
+                    print("DEBUG: error obteniendo acciones:", e)
+
+            action, _, _ = agent.get_action(obs_for_action, deterministic=deterministic)
             
             # Step
             obs, reward, terminated, truncated, info = env.step(action)
@@ -299,6 +404,11 @@ def main():
         default='flappy_agent',
         help='Nombre del archivo de video (default: flappy_agent)'
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Imprimir información de debug (observaciones, acciones, normalizador)'
+    )
     
     args = parser.parse_args()
     
@@ -314,7 +424,8 @@ def main():
             model_path=args.model,
             n_episodes=args.episodes,
             render=args.render,
-            deterministic=not args.stochastic
+            deterministic=not args.stochastic,
+            debug=args.debug
         )
 
 

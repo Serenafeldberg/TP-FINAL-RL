@@ -1,14 +1,25 @@
+"""Environment wrappers and preprocessing.
+
+This module exposes the wrappers and factory that are actually
+implemented in :mod:`wrappers`. Older code referenced symbols
+that no longer exist (e.g. ``ActionRepeat``, ``FrameStack``,
+``PreprocessObs``); export only the current ones to avoid import
+errors when other modules import ``envs``.
 """
-Environment wrappers and preprocessing.
-"""
-from .wrappers import make_env, ActionRepeat, FrameStack, RewardClip, PreprocessObs
+from .wrappers import (
+    make_env,
+    StepAPICompat,
+    TimeLimit,
+    RewardClip,
+    NormalizeObs,
+)
 from . import preprocess
 
 __all__ = [
     "make_env",
-    "ActionRepeat",
-    "FrameStack",
+    "StepAPICompat",
+    "TimeLimit",
     "RewardClip",
-    "PreprocessObs",
+    "NormalizeObs",
     "preprocess",
 ]
