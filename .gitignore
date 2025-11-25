@@ -1,3 +1,16 @@
-# --- Python venv ---
+# --- Virtual environments ---
 venv/
+.venv/
 */venv/
+*/.venv/
+
+# --- Python bytecode ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
