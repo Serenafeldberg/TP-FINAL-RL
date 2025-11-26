@@ -96,15 +96,15 @@ HYPERPARAM_CONFIGS = [
     #     'hidden_size': 512,
     #     'batch_size': 64,
     # },
-    {
-        'id': 8,
-        'name': 'Red_Grande_Menos_Epocas',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 2,          # menos pasadas por buffer, menos overfitting
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
+    # {
+    #     'id': 8,
+    #     'name': 'Red_Grande_Menos_Epocas',
+    #     'learning_rate': 1e-4,
+    #     'entropy_coef': 0.05,
+    #     'n_epochs': 2,          # menos pasadas por buffer, menos overfitting
+    #     'hidden_size': 512,
+    #     'batch_size': 64,
+    # },
     # {
     #     'id': 9,
     #     'name': 'Red_Grande_Batch_Grande',
@@ -123,15 +123,15 @@ HYPERPARAM_CONFIGS = [
     #     'hidden_size': 512,
     #     'batch_size': 64,
     # },
-    {
-        'id': 11,
-        'name': 'Red_Grande_Una_Epoca',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Si 2 epochs funciona, ¿1 será mejor?
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
+    # {
+    #     'id': 11,
+    #     'name': 'Red_Grande_Una_Epoca',
+    #     'learning_rate': 1e-4,
+    #     'entropy_coef': 0.05,
+    #     'n_epochs': 1,          # Si 2 epochs funciona, ¿1 será mejor?
+    #     'hidden_size': 512,
+    #     'batch_size': 64,
+    # },
     # {
     #     'id': 12,
     #     'name': 'Red_Grande_Menos_Epocas_Batch_Grande',
