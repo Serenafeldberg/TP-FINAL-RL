@@ -623,11 +623,16 @@ class RunningNorm:
             raise ValueError(f"Expected shape {self.shape}, got {x.shape}")
         
         # Algoritmo de Welford para actualización incremental
-        self.count += 1
+        prev_count = self.count
+        self.count += 1.0
+
         delta = x - self.mean
         self.mean += delta / self.count
         delta2 = x - self.mean
-        self.var += delta * delta2
+
+        m2 = self.var * prev_count
+        m2 += delta * delta2
+        self.var = m2 / self.count
     
     def update_batch(self, x: np.ndarray) -> None:
         """
