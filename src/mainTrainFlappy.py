@@ -33,15 +33,15 @@ from ppoAgent.memory import RolloutBuffer
 # ============================================================================
 
 HYPERPARAM_CONFIGS = [
-#    {
-#        'id': 1,
-#        'name': 'Baseline',
-#        'learning_rate': 1e-4,
-#        'entropy_coef': 0.05,
-#        'n_epochs': 4,
-#        'hidden_size': 256,
-#        'batch_size': 64,
-#    },
+    {
+        'id': 1,
+        'name': 'Baseline',
+        'learning_rate': 1e-4,
+        'entropy_coef': 0.05,
+        'n_epochs': 4,
+        'hidden_size': 256,
+        'batch_size': 64,
+    },
 #    {
 #        'id': 2,
 #        'name': 'Mayor_Entropia',
@@ -159,15 +159,15 @@ HYPERPARAM_CONFIGS = [
     #     'hidden_size': 512,
     #     'batch_size': 64,
     # },
-    {
-        'id': 15,
-        'name': 'Red_Gigante_Una_Epoca',
-        'learning_rate': 8e-5,   # LR más bajo para red más grande
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Mínimo overfitting
-        'hidden_size': 1024,    # Red aún más grande
-        'batch_size': 64,
-    }
+    #{
+    #    'id': 15,
+    #    'name': 'Red_Gigante_Una_Epoca',
+    #    'learning_rate': 8e-5,   # LR más bajo para red más grande
+    #    'entropy_coef': 0.05,
+    #    'n_epochs': 1,          # Mínimo overfitting
+    #    'hidden_size': 1024,    # Red aún más grande
+    #    'batch_size': 64,
+    #}
     
 ]
 
