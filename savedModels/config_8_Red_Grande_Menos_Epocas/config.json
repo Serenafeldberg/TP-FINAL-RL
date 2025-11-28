@@ -1,0 +1,9 @@
+{
+  "id": 8,
+  "name": "Red_Grande_Menos_Epocas",
+  "learning_rate": 0.0001,
+  "entropy_coef": 0.05,
+  "n_epochs": 2,
+  "hidden_size": 512,
+  "batch_size": 64
+}
