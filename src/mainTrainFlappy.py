@@ -42,107 +42,107 @@ HYPERPARAM_CONFIGS = [
 #        'hidden_size': 256,
 #        'batch_size': 64,
 #    },
+#    {
+#        'id': 2,
+#        'name': 'Mayor_Entropia',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.1,
+#        'n_epochs': 4,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 3,
+#        'name': 'LR_Alto',
+#        'learning_rate': 3e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 4,
+#        'name': 'Red_Grande',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 5,
+#        'name': 'Mas_Epocas',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 8,
+#        'hidden_size': 256,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 6,
+#        'name': 'Red_Grande_LR_Bajo',
+#        'learning_rate': 5e-5,   # más estable, pasos más chiquitos
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 7,
+#        'name': 'Red_Grande_Mayor_Entropia',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.08,   # entre baseline (0.05) y config 2 (0.1)
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 8,
+#        'name': 'Red_Grande_Menos_Epocas',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 2,          # menos pasadas por buffer, menos overfitting
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 9,
+#        'name': 'Red_Grande_Batch_Grande',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 128,      # verificar que sea <= N_STEPS * N_ENVS
+#    },
+#    {
+#        'id': 10,
+#        'name': 'Red_Grande_LR_Alto_Suave',
+#        'learning_rate': 2e-4,  # un intermedio entre 1e-4 y 3e-4
+#        'entropy_coef': 0.05,
+#        'n_epochs': 4,
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 11,
+#        'name': 'Red_Grande_Una_Epoca',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 1,          # Si 2 epochs funciona, ¿1 será mejor?
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 12,
+#        'name': 'Red_Grande_Menos_Epocas_Batch_Grande',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 2,          # Lo mejor de Config 8
+#        'hidden_size': 512,
+#        'batch_size': 128,      # Lo mejor de Config 9
+#    },
     {
-        'id': 2,
-        'name': 'Mayor_Entropia',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.1,
-        'n_epochs': 4,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 3,
-        'name': 'LR_Alto',
-        'learning_rate': 3e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 4,
-        'name': 'Red_Grande',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 5,
-        'name': 'Mas_Epocas',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 8,
-        'hidden_size': 256,
-        'batch_size': 64,
-    },
-    {
-        'id': 6,
-        'name': 'Red_Grande_LR_Bajo',
-        'learning_rate': 5e-5,   # más estable, pasos más chiquitos
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 7,
-        'name': 'Red_Grande_Mayor_Entropia',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.08,   # entre baseline (0.05) y config 2 (0.1)
-        'n_epochs': 4,
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 8,
-        'name': 'Red_Grande_Menos_Epocas',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 2,          # menos pasadas por buffer, menos overfitting
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 9,
-        'name': 'Red_Grande_Batch_Grande',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 512,
-        'batch_size': 128,      # verificar que sea <= N_STEPS * N_ENVS
-    },
-    {
-        'id': 10,
-        'name': 'Red_Grande_LR_Alto_Suave',
-        'learning_rate': 2e-4,  # un intermedio entre 1e-4 y 3e-4
-        'entropy_coef': 0.05,
-        'n_epochs': 4,
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 11,
-        'name': 'Red_Grande_Una_Epoca',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Si 2 epochs funciona, ¿1 será mejor?
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 12,
-        'name': 'Red_Grande_Menos_Epocas_Batch_Grande',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 2,          # Lo mejor de Config 8
-        'hidden_size': 512,
-        'batch_size': 128,      # Lo mejor de Config 9
-    },
-    {
-        'id': 13,
+        'id': 13, #id original = 13
         'name': 'Red_Grande_Una_Epoca_Batch_Grande',
         'learning_rate': 1e-4,
         'entropy_coef': 0.05,
@@ -150,24 +150,24 @@ HYPERPARAM_CONFIGS = [
         'hidden_size': 512,
         'batch_size': 128,      # Batch grande para estabilidad
     },
-    {
-        'id': 14,
-        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
-        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
-        'entropy_coef': 0.05,
-        'n_epochs': 2,          # Fórmula ganadora de Config 8
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 15,
-        'name': 'Red_Gigante_Una_Epoca',
-        'learning_rate': 8e-5,   # LR más bajo para red más grande
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Mínimo overfitting
-        'hidden_size': 1024,    # Red aún más grande
-        'batch_size': 64,
-    }
+#    {
+#        'id': 14,
+#        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
+#        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
+#        'entropy_coef': 0.05,
+#        'n_epochs': 2,          # Fórmula ganadora de Config 8
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 15,
+#        'name': 'Red_Gigante_Una_Epoca',
+#        'learning_rate': 8e-5,   # LR más bajo para red más grande
+#        'entropy_coef': 0.05,
+#        'n_epochs': 1,          # Mínimo overfitting
+#        'hidden_size': 1024,    # Red aún más grande
+#        'batch_size': 64,
+#    }
     
 ]
 
