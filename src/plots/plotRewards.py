@@ -320,12 +320,13 @@ def plot_compare_configs(window_size=100, save_path=None):
     """
     config_names = [
         "config_11_Red_Grande_Una_Epoca",
-        "config_12_Red_Grande_Menos_Epocas_Batch_Grande",
+        #"config_12_Red_Grande_Menos_Epocas_Batch_Grande",
         "config_13_Red_Grande_Una_Epoca_Batch_Grande",
         #"config_8_Red_Grande_Menos_Epocas",
         #"config_9_Red_Grande_Batch_Grande",
-        "config_14_Red_Grande_Menos_Epocas_LR_Suave",
-        "config_15_Red_Gigante_Una_Epoca",
+        #"config_14_Red_Grande_Menos_Epocas_LR_Suave",
+       # "config_15_Red_Gigante_Una_Epoca",
+        #"config_16_Red_Grande_Una_Epoca_Batch_Grande",
         #"config_4_Red_Grande"
         #"config_6_Red_Grande_LR_Bajo",
         #"config_7_Red_Grande_Mayor_Entropia",
@@ -343,7 +344,7 @@ def plot_compare_configs(window_size=100, save_path=None):
         #"config_1_Baseline_new"
     ]
     
-    colors = ['blue', 'red', "green", "purple", "brown"]
+    colors = ["orange", "red"]
     #colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'pink', 'gray', 'teal', 'navy']
     
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))

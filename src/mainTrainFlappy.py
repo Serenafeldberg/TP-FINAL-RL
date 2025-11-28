@@ -142,7 +142,7 @@ HYPERPARAM_CONFIGS = [
 #        'batch_size': 128,      # Lo mejor de Config 9
 #    },
     {
-        'id': 13, #id original = 13
+        'id': 16, #id original = 13
         'name': 'Red_Grande_Una_Epoca_Batch_Grande',
         'learning_rate': 1e-4,
         'entropy_coef': 0.05,
