@@ -1,0 +1,9 @@
+{
+  "id": 18,
+  "name": "Red_Gigante_Una_Epoca",
+  "learning_rate": 8e-05,
+  "entropy_coef": 0.05,
+  "n_epochs": 1,
+  "hidden_size": 1024,
+  "batch_size": 64
+}

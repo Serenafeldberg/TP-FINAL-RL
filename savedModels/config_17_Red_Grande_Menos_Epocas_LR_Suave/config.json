@@ -1,0 +1,9 @@
+{
+  "id": 17,
+  "name": "Red_Grande_Menos_Epocas_LR_Suave",
+  "learning_rate": 0.00015,
+  "entropy_coef": 0.05,
+  "n_epochs": 2,
+  "hidden_size": 512,
+  "batch_size": 64
+}
