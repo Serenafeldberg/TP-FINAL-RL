@@ -150,24 +150,24 @@ HYPERPARAM_CONFIGS = [
         'hidden_size': 512,
         'batch_size': 128,      # Batch grande para estabilidad
     },
-#    {
-#        'id': 14,
-#        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
-#        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
-#        'entropy_coef': 0.05,
-#        'n_epochs': 2,          # Fórmula ganadora de Config 8
-#        'hidden_size': 512,
-#        'batch_size': 64,
-#    },
-#    {
-#        'id': 15,
-#        'name': 'Red_Gigante_Una_Epoca',
-#        'learning_rate': 8e-5,   # LR más bajo para red más grande
-#        'entropy_coef': 0.05,
-#        'n_epochs': 1,          # Mínimo overfitting
-#        'hidden_size': 1024,    # Red aún más grande
-#        'batch_size': 64,
-#    }
+    {
+        'id': 17, # id original = 14
+        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
+        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
+        'entropy_coef': 0.05,
+        'n_epochs': 2,          # Fórmula ganadora de Config 8
+        'hidden_size': 512,
+        'batch_size': 64,
+    },
+    {
+        'id': 18,
+        'name': 'Red_Gigante_Una_Epoca',
+        'learning_rate': 8e-5,   # LR más bajo para red más grande
+        'entropy_coef': 0.05,
+        'n_epochs': 1,          # Mínimo overfitting
+        'hidden_size': 1024,    # Red aún más grande
+        'batch_size': 64,
+    }
     
 ]
 
