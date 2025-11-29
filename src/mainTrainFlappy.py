@@ -60,15 +60,15 @@ HYPERPARAM_CONFIGS = [
 #        'hidden_size': 256,
 #        'batch_size': 64,
 #    },
-#    {
-#        'id': 4,
-#        'name': 'Red_Grande',
-#        'learning_rate': 1e-4,
-#        'entropy_coef': 0.05,
-#        'n_epochs': 4,
-#        'hidden_size': 512,
-#        'batch_size': 64,
-#    },
+    {
+        'id': 20, # id original = 4, ahora con 8M timesteps
+        'name': 'Red_Grande',
+        'learning_rate': 1e-4,
+        'entropy_coef': 0.05,
+        'n_epochs': 4,
+        'hidden_size': 512,
+        'batch_size': 64,
+    },
 #    {
 #        'id': 5,
 #        'name': 'Mas_Epocas',
@@ -141,34 +141,44 @@ HYPERPARAM_CONFIGS = [
 #        'hidden_size': 512,
 #        'batch_size': 128,      # Lo mejor de Config 9
 #    },
+#    {
+#        'id': 16, #id original = 13
+#        'name': 'Red_Grande_Una_Epoca_Batch_Grande',
+#        'learning_rate': 1e-4,
+#        'entropy_coef': 0.05,
+#        'n_epochs': 1,          # Mínimo overfitting
+#        'hidden_size': 512,
+#        'batch_size': 128,      # Batch grande para estabilidad
+#    },
+#    {
+#        'id': 17, # id original = 14, ahora con 6M timesteps
+#        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
+#        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
+#        'entropy_coef': 0.05,
+#        'n_epochs': 2,          # Fórmula ganadora de Config 8
+#        'hidden_size': 512,
+#        'batch_size': 64,
+#    },
+#    {
+#        'id': 18, # id original = 15, ahora con 6M timesteps
+#        'name': 'Red_Gigante_Una_Epoca',
+#        'learning_rate': 8e-5,   # LR más bajo para red más grande
+#        'entropy_coef': 0.05,
+#        'n_epochs': 1,          # Mínimo overfitting
+#        'hidden_size': 1024,    # Red aún más grande
+#        'batch_size': 64,
+#    },
+
     {
-        'id': 16, #id original = 13
-        'name': 'Red_Grande_Una_Epoca_Batch_Grande',
-        'learning_rate': 1e-4,
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Mínimo overfitting
-        'hidden_size': 512,
-        'batch_size': 128,      # Batch grande para estabilidad
+        "id": 21, # con 8M timesteps (inspirada en Config 12)
+        "name": "Red_Grande_Batch_Grande_Ultra_Suave",
+        "hidden_size": 512,
+        "learning_rate": 5e-05,       # Más bajo que config 12
+        "n_epochs": 2,                 # Como config 12
+        "batch_size": 2048,            # Como config 12
+        "entropy_coef": 0.015,         # Ligeramente más exploración
     },
-    {
-        'id': 17, # id original = 14
-        'name': 'Red_Grande_Menos_Epocas_LR_Suave',
-        'learning_rate': 1.5e-4, # Intermedio entre 1e-4 y 2e-4
-        'entropy_coef': 0.05,
-        'n_epochs': 2,          # Fórmula ganadora de Config 8
-        'hidden_size': 512,
-        'batch_size': 64,
-    },
-    {
-        'id': 18,
-        'name': 'Red_Gigante_Una_Epoca',
-        'learning_rate': 8e-5,   # LR más bajo para red más grande
-        'entropy_coef': 0.05,
-        'n_epochs': 1,          # Mínimo overfitting
-        'hidden_size': 1024,    # Red aún más grande
-        'batch_size': 64,
-    }
-    
+   
 ]
 
 
