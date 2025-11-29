@@ -1,0 +1,14 @@
+{
+  "include": [
+    "src",
+    "scripts",
+    "tests_unit"
+  ],
+  "extraPaths": [
+    "src"
+  ],
+  "pythonVersion": "3.10",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}
+

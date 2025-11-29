@@ -3,14 +3,82 @@ venv/
 .venv/
 */venv/
 */.venv/
+ENV/
+env/
 
 # --- Python bytecode ---
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py[cod]
+*$py.class
+*.so
 
 # --- OS files ---
 .DS_Store
 Thumbs.db
 
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Jupyter Notebook ---
+.ipynb_checkpoints
+*.ipynb
+
+# --- PyTorch models (heavy files) ---
+# Include only critical models
+savedModels/*/logs/*.csv
+savedModels/*/*.pth
+!savedModels/config_4_Red_Grande/*.pth
+!savedModels/cartpole_custom/*.pth
+
+# --- Videos (very heavy) ---
+*.mp4
+*.avi
+
+# --- LaTeX temporary files ---
+*.aux
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.out
+*.toc
+*.log
+*.bbl
+*.blg
+
+# --- Logs and temporary files ---
+*.log
+*.tmp
+*.bak
+
+# --- Environment variables ---
+.env
+.env.local
+
+# --- UV (Python package manager) ---
+uv.lock
+
+# --- Data backups ---
+*.npy.bak
+*_backup.csv
+
+# --- Deprecated folders ---
+oldNormalization/
+teoriaInforme/
+
+# --- Build artifacts ---
+build/
+dist/
+*.egg-info/
+
+# Demo videos (upload to Drive)
+
+# Demo videos (upload to Drive, don't commit)
+docs/demo_videos/*.mp4
+src/logs/flappy/videos/*.mp4

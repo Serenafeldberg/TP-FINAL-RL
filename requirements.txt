@@ -4,6 +4,7 @@ torch==2.1.0+cpu
 
 gymnasium>=0.29.0
 flappy-bird-gymnasium>=0.1.0
+stable-baselines3>=2.7.0
 
 numpy>=1.24.0
 matplotlib>=3.7.0

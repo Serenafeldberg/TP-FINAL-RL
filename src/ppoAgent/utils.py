@@ -1,4 +1,3 @@
-import os
 import random
 import numpy as np
 import torch
@@ -15,19 +14,18 @@ def set_seed(seed: int):
         th.cuda.manual_seed_all(seed)
 
 def linear_lr(opt, frac: float):
-    """frac en [0,1] — 1 al inicio, 0 al final."""
+    """frac en [0,1] - 1 al inicio, 0 al final."""
     for pg in opt.param_groups:
         base = pg.get("initial_lr", pg["lr"])
         pg["lr"] = base * max(0.0, min(1.0, frac))
 
-#REPRODUCIBILIDAD
 def set_seed(seed: int, deterministic: bool = False) -> None:
     """
-    Setea la seed para reproducibilidad en todos los frameworks.
+    setea la seed para reproducibilidad en todos los frameworks.
     
     Args:
         seed: Seed para random, numpy, torch, etc.
-        deterministic: Si True, activa modo determinístico completo (más lento)
+        deterministic: Si True, activa modo deterministico completo (mas lento)
     """
     random.seed(seed)
     np.random.seed(seed)
@@ -36,34 +34,26 @@ def set_seed(seed: int, deterministic: bool = False) -> None:
     torch.cuda.manual_seed_all(seed)
     
     if deterministic:
-        # Para determinismo completo (puede ser más lento)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
     
     print(f"✓ Random seed set to {seed}")
 
 
-# LOGGING Y MÉTRICAS
 class Logger:
     """
-    Logger simple para trackear métricas durante el entrenamiento.
-    Guarda en CSV y permite imprimir estadísticas.
+    Logger simple para trackar metricas durante el entrenamiento.
+    Guarda en CSV y permite imprimir estadisticas.
     """
     
     def __init__(self, log_dir: str, log_name: str = "training_log"):
-        """
-        Args:
-            log_dir: Directorio donde guardar los logs
-            log_name: Nombre base del archivo de log
-        """
+
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Archivo de log con timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file = self.log_dir / f"{log_name}_{timestamp}.csv"
         
-        # Buffer para acumular métricas
         self.metrics_buffer: Dict[str, List[float]] = {}
         
         print(f"✓ Logger initialized: {self.log_file}")
@@ -74,41 +64,36 @@ class Logger:
         
         Args:
             metrics: Diccionario de métricas (e.g., {"reward": 10.5, "loss": 0.3})
-            step: Paso de entrenamiento
+            step: paso de entrenamiento
         """
-        # Agregar step a las métricas
+        # agregar step a las metricas
         metrics_with_step = {"step": step, **metrics}
         
-        # Acumular en buffer
+        # acumular en buffer
         for key, value in metrics_with_step.items():
             if key not in self.metrics_buffer:
                 self.metrics_buffer[key] = []
             self.metrics_buffer[key].append(value)
         
-        # Escribir en archivo
         self._write_to_file(metrics_with_step)
     
     def _write_to_file(self, metrics: Dict[str, float]) -> None:
-        """Escribe métricas al archivo CSV."""
-        # Si el archivo no existe, crear header
         file_exists = self.log_file.exists()
         
         with open(self.log_file, 'a') as f:
             if not file_exists:
-                # Escribir header
                 header = ",".join(metrics.keys())
                 f.write(header + "\n")
             
-            # Escribir valores
             values = ",".join(str(v) for v in metrics.values())
             f.write(values + "\n")
     
     def print_summary(self, last_n: int = 100) -> None:
         """
-        Imprime un resumen de las últimas N métricas.
-        
+        imprime un resumen de las ultimas N metricas.
+
         Args:
-            last_n: Número de últimos valores a promediar
+            last_n: numero de ultimos valores a promediar
         """
         if not self.metrics_buffer:
             print("No metrics to summarize")
@@ -133,21 +118,19 @@ class Logger:
         print("="*60 + "\n")
     
     def get_metrics(self) -> Dict[str, List[float]]:
-        """Retorna todas las métricas acumuladas."""
         return self.metrics_buffer
 
 
-# ESTADÍSTICAS DE EPISODIOS
-
+# estadisticas de episodios
 def compute_episode_stats(episode_rewards: List[float]) -> Dict[str, float]:
     """
-    Calcula estadísticas de una lista de recompensas de episodios.
+    calcula estadisticas de una lista de recompensas de episodios.
     
     Args:
-        episode_rewards: Lista de recompensas totales por episodio
+        episode_rewards: lista de recompensas totales por episodio
     
     Returns:
-        Diccionario con mean, std, min, max
+        diccionario con mean, std, min, max
     """
     if not episode_rewards:
         return {
@@ -167,35 +150,25 @@ def compute_episode_stats(episode_rewards: List[float]) -> Dict[str, float]:
 
 def explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> float:
     """
-    Calcula la varianza explicada: 1 - Var[y_true - y_pred] / Var[y_true]
+    calcula la varianza explicada: 1 - Var[y_true - y_pred] / Var[y_true]
     
-    Esta métrica mide qué tan bien el value function predice los returns.
-    - 1.0 = predicción perfecta
+    esta metrica mide qu tan bien el value function predice los returns.
+    - 1.0 = prediccion perfecta
     - 0.0 = tan bueno como predecir la media
     - <0.0 = peor que predecir la media
-    
-    Args:
-        y_pred: Valores predichos (e.g., values)
-        y_true: Valores reales (e.g., returns)
-    
-    Returns:
-        Explained variance (float)
     """
     assert y_pred.shape == y_true.shape, "Shapes must match"
     
     var_y = np.var(y_true)
     if var_y == 0:
-        # Si la varianza es 0, no hay nada que explicar
         return np.nan
     
     return 1.0 - np.var(y_true - y_pred) / var_y
 
 
-# Alias para compatibilidad
 compute_explained_variance = explained_variance
 
 
-# ANNEALING Y SCHEDULING
 
 def linear_anneal(
     step: int,
@@ -204,27 +177,12 @@ def linear_anneal(
     end_value: float
 ) -> float:
     """
-    Annealing lineal de un valor desde start_value hasta end_value.
+    annealing lineal de un valor desde start_value hasta end_value.
     
-    Útil para:
-    - Learning rate decay
-    - Epsilon decay en exploration
-    - Clip epsilon decay
-    
-    Args:
-        step: Paso actual
-        total_steps: Total de pasos
-        start_value: Valor inicial
-        end_value: Valor final
-    
-    Returns:
-        Valor interpolado linealmente
-    
-    Example:
-        >>> # Learning rate decay de 1e-3 a 1e-4 en 1M steps
-        >>> lr = linear_anneal(step=500_000, total_steps=1_000_000, 
-        ...                    start_value=1e-3, end_value=1e-4)
-        >>> print(lr)  # 5.5e-4
+    util para:
+    - learning rate decay
+    - epsilon decay en exploration
+    - clip epsilon decay
     """
     if step >= total_steps:
         return end_value
@@ -235,50 +193,27 @@ def linear_anneal(
 
 def linear_schedule(initial_value: float, final_value: float = 0.0):
     """
-    Crear un scheduler lineal para learning rate.
-    
-    Args:
-        initial_value: valor inicial
-        final_value: valor final
-    
-    Returns:
-        función que toma progress (0 a 1) y devuelve el valor interpolado
+    crear un scheduler lineal para learning rate
     """
     def func(progress: float) -> float:
-        """
-        Args:
-            progress: float en [0, 1], donde 0 = inicio, 1 = final
-        """
+
         return final_value + (initial_value - final_value) * (1 - progress)
     
     return func
 
 
-# DEVICE MANAGEMENT
 
 def get_device(device: Optional[str] = None) -> torch.device:
     """
-    Obtiene el device apropiado (cuda/mps/cpu).
-    
-    Args:
-        device: Device específico ("cuda", "cpu", "mps", None)
-                Si None, selecciona automáticamente el mejor disponible
-    
-    Returns:
-        torch.device
-    
-    Example:
-        >>> device = get_device()  # Auto-detect
-        >>> device = get_device("cuda")  # Force CUDA
+    obtiene el device apropiado (cuda/mps/cpu).
     """
     if device is not None:
         return torch.device(device)
     
-    # Auto-detect mejor device disponible
+    # auto-detect mejor device disponible
     if torch.cuda.is_available():
         return torch.device("cuda")
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        # Apple Silicon (M1/M2)
         return torch.device("mps")
     else:
         return torch.device("cpu")
@@ -286,14 +221,11 @@ def get_device(device: Optional[str] = None) -> torch.device:
 
 def move_to_device(data, device: torch.device):
     """
-    Mueve datos (tensor, lista, tupla, dict) a un device.
+    mueve datos (tensor, lista, tupla, dict) a un device.
     
     Args:
         data: Datos a mover (tensor, list, tuple, dict)
         device: Device destino
-    
-    Returns:
-        Datos en el device especificado
     """
     if isinstance(data, torch.Tensor):
         return data.to(device)
@@ -305,8 +237,7 @@ def move_to_device(data, device: torch.device):
         return data
 
 
-# GRADIENT UTILITIES
-
+# gradient utilities
 def clip_grad_norm(
     parameters,
     max_norm: float,
@@ -314,17 +245,7 @@ def clip_grad_norm(
     error_if_nonfinite: bool = False
 ) -> float:
     """
-    Clipea el norm del gradiente de un iterable de parámetros.
-    Wrapper sobre torch.nn.utils.clip_grad_norm_.
-    
-    Args:
-        parameters: Iterable de parámetros (e.g., model.parameters())
-        max_norm: Norm máximo
-        norm_type: Tipo de norm (default: 2.0 = L2)
-        error_if_nonfinite: Si lanzar error si hay gradientes inf/nan
-    
-    Returns:
-        Norm total del gradiente (antes del clipping)
+    clipea el norm del gradiente de un iterable de parametros.
     """
     return torch.nn.utils.clip_grad_norm_(
         parameters,
@@ -336,14 +257,7 @@ def clip_grad_norm(
 
 def get_grad_norm(parameters, norm_type: float = 2.0) -> float:
     """
-    Calcula el norm del gradiente sin clipear.
-    
-    Args:
-        parameters: Iterable de parámetros
-        norm_type: Tipo de norm (default: 2.0 = L2)
-    
-    Returns:
-        Norm del gradiente
+    calcula el norm del gradiente sin clipear.
     """
     parameters = list(filter(lambda p: p.grad is not None, parameters))
     
@@ -365,18 +279,14 @@ def get_grad_norm(parameters, norm_type: float = 2.0) -> float:
 
 def zero_grad(parameters) -> None:
     """
-    Zero out gradients de parámetros.
-    
-    Args:
-        parameters: Iterable de parámetros
+    zero out gradients de parametros.
     """
     for param in parameters:
         if param.grad is not None:
-            param.grad.zero_()
+            param.grad.zero_()   
 
 
-# CHECKPOINT UTILITIES
-
+# checkpoint utilities
 def save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -386,18 +296,10 @@ def save_checkpoint(
     config: Optional[Dict] = None,
 ) -> str:
     """
-    Guarda un checkpoint del modelo y optimizer.
+    guarda un checkpoint del modelo y optimizer.
     
-    Args:
-        model: Modelo de PyTorch
-        optimizer: Optimizer de PyTorch
-        step: Paso de entrenamiento actual
-        save_dir: Directorio donde guardar
-        filename: Nombre del archivo (opcional, se genera automáticamente)
-        config: Configuración del modelo (opcional)
-    
-    Returns:
-        Path del archivo guardado
+    filename: nombre del archivo (opcional, se genera automaticamente)
+    config: configuracion del modelo (opcional)
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -427,16 +329,13 @@ def load_checkpoint(
     device: str = "cpu",
 ) -> int:
     """
-    Carga un checkpoint del modelo y optimizer.
+    carga un checkpoint del modelo y optimizer.
     
     Args:
-        filepath: Path al archivo de checkpoint
-        model: Modelo donde cargar los pesos
-        optimizer: Optimizer donde cargar el estado (opcional)
-        device: Device donde cargar el modelo
-    
-    Returns:
-        Paso de entrenamiento del checkpoint
+        filepath: path al archivo de checkpoint
+        model: modelo donde cargar los pesos
+        optimizer: optimizer donde cargar el estado (opcional)
+        device: device donde cargar el modelo
     """
     checkpoint = torch.load(filepath, map_location=device)
     
@@ -457,12 +356,8 @@ def save_model_only(
     save_path: str,
 ) -> None:
     """
-    Guarda solo el modelo (sin optimizer ni metadata).
-    Útil para el modelo final.
-    
-    Args:
-        model: Modelo de PyTorch
-        save_path: Path completo del archivo
+    guarda solo el modelo (sin optimizer ni metadata).
+    util para el modelo final.
     """
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -477,12 +372,8 @@ def load_model_only(
     device: str = "cpu",
 ) -> None:
     """
-    Carga solo el modelo (sin optimizer).
+    carga solo el modelo (sin optimizer).
     
-    Args:
-        model: Modelo donde cargar los pesos
-        load_path: Path al archivo del modelo
-        device: Device donde cargar
     """
     state_dict = torch.load(load_path, map_location=device)
     model.load_state_dict(state_dict)
@@ -493,11 +384,11 @@ def load_model_only(
 
 def save_config(config_dict: Dict, save_path: str) -> None:
     """
-    Guarda la configuración en formato JSON.
+    guarda la configuracion en formato JSON.
     
     Args:
-        config_dict: Diccionario de configuración
-        save_path: Path donde guardar
+        config_dict: diccionario de configuracion
+        save_path: path donde guardar
     """
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -510,13 +401,13 @@ def save_config(config_dict: Dict, save_path: str) -> None:
 
 def load_config(load_path: str) -> Dict:
     """
-    Carga configuración desde JSON.
+    carga configuracion desde JSON.
     
     Args:
-        load_path: Path al archivo de configuración
+        load_path: path al archivo de configuracion
     
     Returns:
-        Diccionario de configuración
+        diccionario de configuracion
     """
     with open(load_path, 'r') as f:
         config = json.load(f)
@@ -525,18 +416,15 @@ def load_config(load_path: str) -> Dict:
     return config
 
 
-# INFORMACIÓN DEL SISTEMA
 
 def print_system_info() -> None:
-    """Imprime información del sistema (GPU, CUDA, etc.)."""
+    """imprime informacion del sistema (GPU, CUDA, etc.)."""
     print("\n" + "="*60)
     print("SYSTEM INFORMATION")
     print("="*60)
     
-    # PyTorch version
     print(f"PyTorch version: {torch.__version__}")
     
-    # CUDA
     if torch.cuda.is_available():
         print(f"CUDA available: Yes")
         print(f"CUDA version: {torch.version.cuda}")
@@ -547,17 +435,15 @@ def print_system_info() -> None:
     else:
         print(f"CUDA available: No (using CPU)")
     
-    # MPS (Apple Silicon)
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         print(f"MPS available: Yes (Apple Silicon)")
     
     print("="*60 + "\n")
 
-# NORMALIZACIÓN DE OBSERVACIONES
-
+# normalizacion de observaciones
 class RunningNorm:
     """
-    Normalizador de observaciones usando estadísticas corrientes (running statistics).
+    normalizador de observaciones usando estadisticas corrientes (running statistics).
     
     Implementa normalización Z-score: (x - mean) / std
     Las estadísticas se actualizan incrementalmente usando el algoritmo de Welford.
@@ -813,13 +699,11 @@ class RunningNorm:
         return f"RunningNorm(shape={self.shape}, count={self.count:.0f}, mode={mode})"
 
 
-# TESTING
 
 def test_utils():
     """Test de las funciones de utils."""
     print("Testing utils.py...")
     
-    # Test set_seed
     print("\n1. Testing set_seed:")
     set_seed(42)
     val1 = np.random.rand()
@@ -828,7 +712,6 @@ def test_utils():
     assert val1 == val2, "Seeds not working properly"
     print("   ✓ set_seed works")
     
-    # Test Logger
     print("\n2. Testing Logger:")
     logger = Logger("/tmp/test_logs", "test")
     logger.log({"reward": 10.5, "loss": 0.3}, step=1)
@@ -836,7 +719,6 @@ def test_utils():
     logger.print_summary(last_n=2)
     print("   ✓ Logger works")
     
-    # Test compute_episode_stats
     print("\n3. Testing compute_episode_stats:")
     rewards = [10.0, 15.0, 12.0, 20.0]
     stats = compute_episode_stats(rewards)
@@ -844,7 +726,6 @@ def test_utils():
     assert "mean_reward" in stats
     print("   ✓ compute_episode_stats works")
     
-    # Test explained_variance
     print("\n4. Testing explained_variance:")
     y_true = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     y_pred = np.array([1.1, 2.1, 2.9, 4.2, 4.8])
@@ -853,7 +734,6 @@ def test_utils():
     assert 0.0 <= explained_var <= 1.0
     print("   ✓ explained_variance works")
     
-    # Test linear_anneal
     print("\n5. Testing linear_anneal:")
     lr_start = linear_anneal(0, 1000, 1e-3, 1e-4)
     lr_mid = linear_anneal(500, 1000, 1e-3, 1e-4)
@@ -864,7 +744,6 @@ def test_utils():
     assert lr_start > lr_mid > lr_end
     print("   ✓ linear_anneal works")
     
-    # Test get_device
     print("\n6. Testing get_device:")
     device = get_device()
     print(f"   Auto-detected device: {device}")
@@ -872,7 +751,6 @@ def test_utils():
     assert device_cpu.type == "cpu"
     print("   ✓ get_device works")
     
-    # Test gradient utilities
     print("\n7. Testing gradient utilities:")
     dummy_model = torch.nn.Linear(10, 5)
     dummy_input = torch.randn(2, 10)
@@ -886,7 +764,6 @@ def test_utils():
     print(f"   Grad norm after clip: {grad_norm_clipped:.4f}")
     print("   ✓ Gradient utilities work")
     
-    # Test checkpoints
     print("\n8. Testing checkpoints:")
     dummy_optimizer = torch.optim.Adam(dummy_model.parameters())
     
@@ -895,13 +772,11 @@ def test_utils():
     assert step == 100
     print("   ✓ Checkpoints work")
     
-    # Test save/load model only
     print("\n9. Testing model save/load:")
     save_model_only(dummy_model, "/tmp/test_model.pt")
     load_model_only(dummy_model, "/tmp/test_model.pt")
     print("   ✓ Model save/load works")
     
-    # Test config
     print("\n10. Testing config save/load:")
     test_config = {"lr": 0.001, "gamma": 0.99}
     save_config(test_config, "/tmp/test_config.json")
@@ -909,50 +784,42 @@ def test_utils():
     assert loaded_config == test_config
     print("   ✓ Config save/load works")
     
-    # System info
     print("\n11. Testing system info:")
     print_system_info()
     
-    # Test RunningNorm
     print("\n12. Testing RunningNorm:")
     norm = RunningNorm(shape=(4,))
     
-    # Test update single
     obs1 = np.array([1.0, 2.0, 3.0, 4.0])
     norm.update(obs1)
     assert norm.count > 0, "Count should increase"
     print("   ✓ Single update works")
     
-    # Test update batch
     obs_batch = np.random.randn(10, 4).astype(np.float32)
     norm.update_batch(obs_batch)
     assert norm.count > 10, "Count should increase with batch"
     print("   ✓ Batch update works")
     
-    # Test normalize
     obs_norm = norm.normalize(obs1)
     assert obs_norm.shape == obs1.shape, "Normalized shape should match"
     assert np.abs(obs_norm.mean()) < 1.0, "Normalized should be roughly zero-mean"
     print("   ✓ Normalize works")
     
-    # Test denormalize
     obs_denorm = norm.denormalize(obs_norm)
     assert np.allclose(obs_denorm, obs1, atol=1e-5), "Denormalize should recover original"
     print("   ✓ Denormalize works")
     
-    # Test eval mode
     norm.eval()
     old_mean = norm.mean.copy()
     norm.update(obs1)
     assert np.allclose(norm.mean, old_mean), "Eval mode should not update stats"
     print("   ✓ Eval mode works")
     
-    # Test save/load
     import tempfile
     with tempfile.NamedTemporaryFile(suffix='.npz', delete=False) as f:
         temp_path = f.name
     
-    norm.train()  # Back to training mode
+    norm.train()  # volver a training mode
     norm.save(temp_path)
     norm2 = RunningNorm(shape=(4,))
     norm2.load(temp_path)

@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from typing import Optional, Tuple
-import time
+from typing import Optional
 
 
 class PPO:
@@ -25,7 +24,9 @@ class PPO:
         entropy_coef=0.01,
         max_grad_norm=0.5,
         lr_decay=True,
-        device="cpu"
+        device="cpu",
+        lr_decay_steps: int | None = None,
+        lr_min_frac: float = 0.0,
     ):
         """
         Args:
@@ -41,34 +42,34 @@ class PPO:
         self.actor_critic = actor_critic.to(device)
         self.device = device
         
-        # Hiperparámetros
+        #hiperparametros
         self.clip_epsilon = clip_epsilon
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
         self.max_grad_norm = max_grad_norm
         self.lr_decay = lr_decay
+        self.lr_decay_steps = lr_decay_steps
+        self.lr_min_frac = max(0.0, lr_min_frac)
         self.initial_lr = learning_rate
         
-        # Optimizer (uso Adam como en el paper)
         self.optimizer = optim.Adam(
             self.actor_critic.parameters(),
             lr=learning_rate,
-            eps=1e-5  # valor del paper original de PPO de 2017
+            eps=1e-5  
         )
         
-        # Para logging
         self.n_updates = 0
     
     def get_action(self, obs: np.ndarray, deterministic: bool = False):
         """
-        Seleccionamos una acción dada una observación.
+        seleccionamos una accion dada una observacion.
         
         Args:
             obs: observación (single)
-            deterministic: si True, tomamos la media (para evaluación)
+            deterministic: si True, tomamos la moda/media (para evaluacion)
         
         Returns:
-            action: acción 
+            action: accion 
             log_prob: log π(a|s)
             value: V(s)
         """
@@ -78,7 +79,7 @@ class PPO:
                 obs_tensor = obs_tensor.unsqueeze(0)  
             
             if deterministic:
-                # evaluación: tomamos la moda/media
+                # evaluacion: tomamos la moda/media
                 if self.actor_critic.action_type == "discrete":
                     features = self.actor_critic.forward(obs_tensor)
                     logits = self.actor_critic.actor_head(features)
@@ -106,10 +107,6 @@ class PPO:
     def evaluate_actions(self, obs, actions):
         """
         Evaluamos las acciones bajo la política actual.
-        Returns:
-            log_probs: log π(a|s) [B]
-            entropy: entropía [B]
-            values: V(s) [B]
         """
         _, log_probs, entropy, values = self.actor_critic.get_action_and_value(obs, actions)
         return log_probs, entropy, values
@@ -123,23 +120,25 @@ class PPO:
         current_timestep: Optional[int] = None
     ):
         """
-        Actualizar la política usando los datos del rollout buffer.
+        actualizar la política usando los datos del rollout buffer.
         
         Args:
             rollout_buffer: buffer con las trayectorias
             batch_size: tamaño de mini-batch
-            n_epochs: número de épocas de entrenamiento sobre los datos
+            n_epochs: numero de epocas de entrenamiento sobre los datos
             total_timesteps: timesteps totales (para el annealing del learning rate)
-            current_timestep: timestep actual (para el annealing del learning rate)
-        
-        Returns:
-            dict con métricas de entrenamiento
+            current_timestep: timestep actual (para el annealing del learning rate)        
         """
         # annealing del learning rate
-        if self.lr_decay and total_timesteps is not None and current_timestep is not None:
-            frac = 1.0 - (current_timestep / total_timesteps)
-            new_lr = self.initial_lr * frac
-            new_lr = max(new_lr, 0.0)  # no negativo para evitar problemas de estabilidad
+        if self.lr_decay and current_timestep is not None:
+            decay_steps = self.lr_decay_steps or total_timesteps
+            if decay_steps is not None and decay_steps > 0:
+                progress = min(current_timestep / decay_steps, 1.0)
+                frac = 1.0 - progress
+                frac = max(frac, self.lr_min_frac)
+                new_lr = self.initial_lr * frac
+            else:
+                new_lr = self.initial_lr
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = new_lr
         
@@ -149,9 +148,9 @@ class PPO:
         clip_fractions = []
         approx_kls = []
         
-        # entrenamos por n_epochs
+        # entrenamos por n_epocas
         for epoch in range(n_epochs):
-            # iteramos sobre los mini-batches
+            # iteramos sobre los mini-batches del rollout buffer
             for batch in rollout_buffer.get(batch_size):
                 obs = batch["observations"]
                 actions = batch["actions"]
@@ -160,22 +159,22 @@ class PPO:
                 returns = batch["returns"]
                 old_values = batch["values"]
                 
-                # evaluamos las acciones con la política actual
+                # evaluamos las acciones bajo la política actual
                 log_probs, entropy, values = self.evaluate_actions(obs, actions)
                 
-                # Policy Loss (surrogate clipped)
+                # policy loss (surrogate clipped)
                 # ratio = π_new / π_old = exp(log π_new - log π_old)
                 ratios = torch.exp(log_probs - old_log_probs)
                 
-                # Surrogate losses
+                # surrogate losses
                 surr1 = ratios * advantages
                 surr2 = torch.clamp(ratios, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon) * advantages
                 
-                # Policy loss: -E[min(surr1, surr2)]
+                # policy loss: -E[min(surr1, surr2)]
                 policy_loss = -torch.min(surr1, surr2).mean()
                 
-                # Value Loss 
-                # clipped value loss ( ayuda a estabilidad)
+                # value loss 
+                # clipped value loss
                 values_clipped = old_values + torch.clamp(
                     values - old_values,
                     -self.clip_epsilon,
@@ -185,11 +184,10 @@ class PPO:
                 value_loss_clipped = (values_clipped - returns).pow(2)
                 value_loss = 0.5 * torch.max(value_loss_unclipped, value_loss_clipped).mean()
                 
-                # Entropy Bonus 
+                # entropy bonus 
                 entropy_loss = -entropy.mean()
                 
-                # Total Loss 
-                # L = L_policy + c1*L_value - c2*H(π)
+                # total loss 
                 loss = (
                     policy_loss
                     + self.value_loss_coef * value_loss
@@ -199,12 +197,10 @@ class PPO:
                 self.optimizer.zero_grad()
                 loss.backward()
                 
-                # gradient clipping 
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 
                 self.optimizer.step()
                 
-                # logging
                 policy_losses.append(policy_loss.item())
                 value_losses.append(value_loss.item())
                 entropy_losses.append(entropy_loss.item())
@@ -213,13 +209,11 @@ class PPO:
                     clip_frac = torch.mean((torch.abs(ratios - 1.0) > self.clip_epsilon).float()).item()
                     clip_fractions.append(clip_frac)
                     
-                    # aproximación de la divergencia KL
                     approx_kl = ((ratios - 1) - log_probs + old_log_probs).mean().item()
                     approx_kls.append(approx_kl)
         
         self.n_updates += 1
         
-        # retornamos las métricas
         return {
             "policy_loss": np.mean(policy_losses),
             "value_loss": np.mean(value_losses),
@@ -230,7 +224,6 @@ class PPO:
         }
     
     def save(self, path: str):
-        """guardamos el modelo."""
         torch.save({
             'actor_critic_state_dict': self.actor_critic.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
@@ -239,7 +232,6 @@ class PPO:
         print(f"Modelo guardado en: {path}")
     
     def load(self, path: str):
-        """cargamos el modelo."""
         checkpoint = torch.load(path, map_location=self.device)
         self.actor_critic.load_state_dict(checkpoint['actor_critic_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

@@ -4,7 +4,7 @@ Redes Actor-Critic para PPO.
 Actor: salida la distribución de acción (media para acciones continuas)
 Critic: salida el valor V(s)
 
-Diseñado para observaciones vectoriales (LIDAR) usando MLP.
+lo diseñamos para observaciones vectoriales (LIDAR) usando MLP.
 """
 import torch
 import torch.nn as nn
@@ -15,10 +15,8 @@ import numpy as np
 
 class ActorCritic(nn.Module):
     """
-    - Actor: predice la política π(a|s)
-    - Critic: predice el valor V(s), para criticar la acción del actor
-    
-    Usa MLP para observaciones vectoriales (no CNN).
+    - Actor: predice la política
+    - Critic: predice el valor, para criticar la acción del actor    
     """
     
     def __init__(
@@ -31,8 +29,8 @@ class ActorCritic(nn.Module):
         """
         Args:
             obs_shape: tuple, forma de la observación (n_features,) para vector
-            action_dim: int, número de acciones (discreto) o dim del espacio (continuo)
-            action_type: "discrete" o "continuous"
+            action_dim: int, número de acciones (discreto)
+            action_type: "discrete"
             hidden_size: tamaño de las capas ocultas de la MLP
         """
         super().__init__()
@@ -41,52 +39,44 @@ class ActorCritic(nn.Module):
         self.action_dim = action_dim
         self.action_type = action_type
         
-        # Calcular dimensión de entrada
         if len(obs_shape) == 1:
-            # Vector 1D: (n_features,)
             input_dim = obs_shape[0]
         else:
-            # Flatten si es multidimensional
             input_dim = int(np.prod(obs_shape))
         
-        # Feature extractor: MLP para observaciones vectoriales
         self.feature_extractor = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU()
-        )
+        ) #MLP para observaciones vectoriales
         
-        # Capa compartida (opcional, puede ser parte del feature extractor)
-        # Por ahora lo dejamos como está para mantener estructura similar
         self.shared_fc = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU()
         )
         
-        # Actor head
+        #cabeza del actor
         if action_type == "discrete":
             self.actor_head = nn.Linear(hidden_size, action_dim)
         else:
-            # Para acciones continuas: predecimos la media de una Normal
+            #acciones que no son discretas: predecimos la media de una Normal
             self.actor_mean = nn.Linear(hidden_size, action_dim)
-            # Log std como parámetro aprendible
-            # Inicializamos en 0 → std = 1
             self.log_std = nn.Parameter(torch.zeros(action_dim))
         
-        # Critic head
+        #cabeza del critic
         self.critic_head = nn.Linear(hidden_size, 1)
-        self._init_weights()  # Inicialización de pesos
+        self._init_weights()  #inicializacion de pesos de la red
     
     def _init_weights(self):
-        """Inicializamos los pesos de la red."""
+        """inicializacion de pesos de la red"""
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
         
-        # Último layer del actor y critic con gain menor para estabilidad
+        # ultimo layer del actor y critic con gain menor para estabilidad
         if self.action_type == "discrete":
             nn.init.orthogonal_(self.actor_head.weight, gain=0.01)
         else:
@@ -99,20 +89,18 @@ class ActorCritic(nn.Module):
         Returns:
             features: features extraídas
         """
-        # Asegurar que obs es un tensor en el mismo device que el modelo
         if isinstance(obs, np.ndarray):
             obs = torch.as_tensor(obs, dtype=torch.float32, device=next(self.parameters()).device)
         elif not isinstance(obs, torch.Tensor):
             obs = torch.as_tensor(obs, dtype=torch.float32)
         
-        # Flatten si es necesario
         if obs.ndim > 1:
             batch_size = obs.shape[0]
             obs = obs.view(batch_size, -1)
         else:
             obs = obs.view(1, -1)
         
-        # Pasar por MLP
+        #pasamos por la MLP
         features = self.feature_extractor(obs)
         features = self.shared_fc(features)
         return features
@@ -131,7 +119,6 @@ class ActorCritic(nn.Module):
             entropy: entropía de la distribución
             value: V(s)
         """
-        # Asegurar que obs tiene batch dimension y está en el device correcto
         device = next(self.parameters()).device
         if isinstance(obs, np.ndarray):
             obs = torch.as_tensor(obs, dtype=torch.float32, device=device)
@@ -143,10 +130,10 @@ class ActorCritic(nn.Module):
         
         features = self.forward(obs)
         
-        # Critic: predice el valor V(s)
+        #critic: predice el valor V(s)
         value = self.critic_head(features).squeeze(-1)  # [batch]
         
-        # Actor: predice la política π(a|s)
+        #actor: predice la política π(a|s)
         if self.action_type == "discrete":
             logits = self.actor_head(features)  # [batch, action_dim]
             dist = Categorical(logits=logits)
@@ -154,7 +141,6 @@ class ActorCritic(nn.Module):
             if action is None:
                 action = dist.sample()
             else:
-                # Asegurar que action es un tensor con la forma correcta
                 if isinstance(action, (int, np.integer)):
                     action = torch.tensor([action], device=obs.device)
                 elif isinstance(action, np.ndarray):
@@ -165,7 +151,7 @@ class ActorCritic(nn.Module):
             log_prob = dist.log_prob(action)
             entropy = dist.entropy()
             
-        else:  # acciones continuas
+        else:  #acciones que no son discretas
             mean = self.actor_mean(features)  # [batch, action_dim]
             std = torch.exp(self.log_std)  # broadcast a [action_dim]
             dist = Normal(mean, std)
@@ -184,8 +170,7 @@ class ActorCritic(nn.Module):
         return action, log_prob, entropy, value 
     
     def get_value(self, obs):
-        """Solo obtenemos V(s) - más eficiente cuando no necesitamos la política."""
-        # Asegurar que obs tiene batch dimension y está en el device correcto
+        #asegurar que obs tiene batch dimension y esta en el device correcto
         device = next(self.parameters()).device
         if isinstance(obs, np.ndarray):
             obs = torch.as_tensor(obs, dtype=torch.float32, device=device)
@@ -200,9 +185,6 @@ class ActorCritic(nn.Module):
 
 
 class FeedForwardNN(nn.Module):
-    """
-    Red MLP simple (para estados de baja dimensión)
-    """
     
     def __init__(self, in_dim, out_dim, hidden_size=64):
         super().__init__()
