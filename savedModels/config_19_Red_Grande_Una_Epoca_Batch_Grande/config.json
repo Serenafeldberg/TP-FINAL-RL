@@ -1,0 +1,9 @@
+{
+  "id": 19,
+  "name": "Red_Grande_Una_Epoca_Batch_Grande",
+  "learning_rate": 0.0001,
+  "entropy_coef": 0.05,
+  "n_epochs": 1,
+  "hidden_size": 512,
+  "batch_size": 128
+}
