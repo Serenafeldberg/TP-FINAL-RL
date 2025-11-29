@@ -1,0 +1,9 @@
+{
+  "id": 21,
+  "name": "Red_Grande_Batch_Grande_Ultra_Suave",
+  "hidden_size": 512,
+  "learning_rate": 5e-05,
+  "n_epochs": 2,
+  "batch_size": 2048,
+  "entropy_coef": 0.015
+}
