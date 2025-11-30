@@ -97,7 +97,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def load_rewards(config_dir: Path) -> pd.DataFrame:
     rewards_path = config_dir / "logs" / "rewards.csv"
     df = pd.read_csv(rewards_path)
-    return df.sort_values("episode").reset_index(drop=True)
+    return df.sort_values("timestep").reset_index(drop=True)
 
 
 def load_losses(config_dir: Path) -> pd.DataFrame:
@@ -142,7 +142,7 @@ def collect_config_data(
             continue
         smoothed = prepare_series(rewards_df, window=window)
         label = get_label(row)
-        data.append((rewards_df["episode"], smoothed, label))
+        data.append((rewards_df["timestep"], smoothed, label))
     return data
 
 
@@ -163,7 +163,7 @@ def plot_top5_learning_curves(
     plt.figure(figsize=(12, 6))
     for episodes, rewards, label in series:
         plt.plot(episodes, rewards, label=label, linewidth=2)
-    plt.xlabel("Episodio")
+    plt.xlabel("Total Timesteps")
     plt.ylabel(f"Reward (media móvil {window})")
     plt.title("Curvas de aprendizaje – Mejores 5 configuraciones")
     plt.legend(loc="lower right")
@@ -194,7 +194,7 @@ def plot_baseline_vs_best(
     plt.figure(figsize=(12, 6))
     for episodes, rewards, label in series:
         plt.plot(episodes, rewards, label=label, linewidth=2)
-    plt.xlabel("Episodio")
+    plt.xlabel("Total Timesteps")
     plt.ylabel(f"Reward (media móvil {window})")
     plt.title("Baseline vs Mejores configuraciones")
     plt.legend(loc="lower right")
@@ -384,6 +384,76 @@ def plot_evaluation_comparison(
     print(f"[INFO] Guardado {path}")
 
 
+def plot_grouped_comparison(
+    eval_df: pd.DataFrame, 
+    ranking_df: pd.DataFrame, 
+    output_dir: Path,
+) -> None:
+    """Single figure with all 15 configurations ranked by evaluation score."""
+    if eval_df.empty:
+        print("[WARN] Evaluation dataframe is empty.")
+        return
+    
+    # Merge y ordenar por evaluation score (descendente)
+    merged = eval_df.merge(
+        ranking_df[['config_id', 'mean_reward_last']], 
+        on='config_id', 
+        how='left'
+    )
+    
+    # Filtrar solo configs 1-15 y ordenar por mean_score
+    merged_filtered = merged[(merged['config_id'] >= 1) & (merged['config_id'] <= 15)].copy()
+    merged_sorted = merged_filtered.sort_values('mean_score', ascending=False).copy()
+    merged_sorted['config_label'] = 'Config ' + merged_sorted['config_id'].astype(str)
+    
+    score_values = merged_sorted['mean_score'].values
+    reward_values = merged_sorted['mean_reward_last'].values
+    
+    fig, ax = plt.subplots(figsize=(16, 10))
+    
+    x = range(len(merged_sorted))
+    width = 0.35
+    
+    # Barras de evaluation score (pipes) - más anchas y prominentes
+    bars1 = ax.bar([i - width/2 for i in x], score_values, 
+                   width, label='Evaluation Score (pipes)', 
+                   color='#2E86AB', alpha=0.8, edgecolor='navy')
+    
+    # Barras de training reward - más delgadas al lado
+    bars2 = ax.bar([i + width/2 for i in x], reward_values, 
+                   width, label='Training Reward (últimos 100 eps)', 
+                   color='#F18F01', alpha=0.8, edgecolor='darkred')
+    
+    # Añadir valores sobre las barras - solo para evaluation score
+    for bar, value in zip(bars1, score_values):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 3,
+                f'{value:.0f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
+    
+    ax.set_xlabel('Configuración (Rankeada por Evaluation Score)', fontweight='bold', fontsize=12)
+    ax.set_ylabel('Valor', fontweight='bold', fontsize=12)
+    ax.set_title('Ranking: Configuraciones 1-15 por Score de Evaluación', 
+                 fontweight='bold', fontsize=16, pad=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels(merged_sorted['config_label'], rotation=45, ha='right', fontsize=10)
+    ax.legend(loc='upper right', fontsize=11)
+    ax.grid(axis='y', alpha=0.3)
+    
+    # Añadir línea de separación visual
+    ax.axhline(y=0, color='black', linewidth=0.8)
+    
+    # Añadir texto informativo
+    ax.text(0.02, 0.98, f'Total de configuraciones: {len(merged_sorted)}', 
+            transform=ax.transAxes, fontsize=10, verticalalignment='top',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.7))
+    
+    path = output_dir / "grouped_comparison.png"
+    plt.tight_layout()
+    plt.savefig(path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"[INFO] Guardado {path}")
+
+
 def plot_training_with_eval_scores(
     eval_df: pd.DataFrame,
     ranking_df: pd.DataFrame,
@@ -428,7 +498,7 @@ def plot_training_with_eval_scores(
                          edgecolor=line.get_color(), alpha=0.8)
             )
     
-    ax.set_xlabel('Episodio', fontweight='bold')
+    ax.set_xlabel('Total Timesteps', fontweight='bold')
     ax.set_ylabel(f'Reward (media móvil {window})', fontweight='bold')
     ax.set_title('Curvas de Entrenamiento con Scores de Evaluación Final', 
                  fontsize=14, fontweight='bold', pad=15)
@@ -512,6 +582,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 
                 plot_evaluation_scores_ranking(eval_df, output_dir, top_k=10)
                 plot_evaluation_comparison(eval_df, ranking_df, output_dir)
+                plot_grouped_comparison(eval_df, ranking_df, output_dir)
                 plot_training_with_eval_scores(
                     eval_df, ranking_df, saved_models_dir, output_dir, 
                     window=args.rolling_window
@@ -520,6 +591,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 generated_files.extend([
                     "evaluation_scores_ranking.png",
                     "evaluation_comparison.png",
+                    "grouped_comparison.png",
                     "training_vs_eval_top5.png",
                 ])
             except Exception as e:

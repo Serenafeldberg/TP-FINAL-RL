@@ -360,7 +360,7 @@ def plot_compare_configs(window_size=100, save_path=None):
         rewards_path = Path(__file__).parent.parent.parent / "savedModels" / config_name / "logs" / "rewards.csv"
         
         if not rewards_path.exists():
-            print(f"⚠️  No se encontró: {rewards_path}")
+            print(f"No se encontró: {rewards_path}")
             continue
         
         try:
@@ -394,10 +394,10 @@ def plot_compare_configs(window_size=100, save_path=None):
                 'episodes': len(rewards)
             })
             
-            print(f"✓ {config_name}: {len(rewards)} episodios, promedio final: {final_avg:.2f}, máximo: {max_reward:.2f}")
+            print(f" {config_name}: {len(rewards)} episodios, promedio final: {final_avg:.2f}, máximo: {max_reward:.2f}")
             
         except Exception as e:
-            print(f"❌ Error al procesar {config_name}: {e}")
+            print(f"Error al procesar {config_name}: {e}")
     
     # Configurar AX1: Promedio móvil
     ax1.set_xlabel('Timestep', fontsize=12)

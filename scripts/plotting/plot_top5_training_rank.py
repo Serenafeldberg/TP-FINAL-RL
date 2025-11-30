@@ -34,7 +34,7 @@ def discover_config_dir(saved_models_dir: Path, config_id: int) -> Optional[Path
 def load_rewards(config_dir: Path) -> pd.DataFrame:
     rewards_path = config_dir / "logs" / "rewards.csv"
     df = pd.read_csv(rewards_path)
-    return df.sort_values("episode").reset_index(drop=True)
+    return df.sort_values("timestep").reset_index(drop=True)
 
 
 def plot_top5_training(
@@ -76,7 +76,7 @@ def plot_top5_training(
         
         label = f"#{idx+1} | ID {config_id} | {config_name.replace('_', ' ')}\n(Mean: {mean_reward:.1f})"
         line = ax.plot(
-            df['episode'],
+            df['timestep'],
             df['reward_smooth'],
             label=label,
             linewidth=2.5,
@@ -84,7 +84,7 @@ def plot_top5_training(
             alpha=0.9
         )[0]
         
-        final_episode = df['episode'].iloc[-1]
+        final_episode = df['timestep'].iloc[-1]
         final_reward = df['reward_smooth'].iloc[-1]
         
         ax.annotate(
@@ -103,7 +103,7 @@ def plot_top5_training(
             )
         )
     
-    ax.set_xlabel('Episodio', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Total Timesteps', fontsize=13, fontweight='bold')
     ax.set_ylabel(
         f'Reward (media móvil {rolling_window} episodios)',
         fontsize=13,

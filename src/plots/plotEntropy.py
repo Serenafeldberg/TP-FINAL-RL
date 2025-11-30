@@ -43,11 +43,11 @@ def load_losses_data(config_dirs, max_timesteps=1_000_000):
                     losses_data[config_name] = df
                     print(f"✓ Cargado {config_name}: {len(df)} puntos de datos")
                 else:
-                    print(f"⚠️  {config_name}: Sin datos dentro del rango de timesteps")
+                    print(f"{config_name}: Sin datos dentro del rango de timesteps")
             except Exception as e:
-                print(f"❌ Error cargando {config_name}: {e}")
+                print(f"Error cargando {config_name}: {e}")
         else:
-            print(f"❌ No encontrado: {losses_file}")
+            print(f"No encontrado: {losses_file}")
     
     return losses_data
 
@@ -137,14 +137,14 @@ def plot_entropy_subplots(losses_data):
 
 def main():
     """Función principal"""
-    print("🚀 Iniciando análisis de entropía...")
+    print("Iniciando análisis de entropía...")
     
     # Directorio base de modelos guardados - usar ruta absoluta como en plotRewards.py
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent  # src/plots -> src -> project_root
     base_dir = project_root / "savedModels"
     
-    print(f"📁 Buscando en: {base_dir.absolute()}")
+    print(f"Buscando en: {base_dir.absolute()}")
     
     # Configuraciones específicas que queremos plotear
     target_configs = [15, 9, 8, 11, 13]
@@ -160,8 +160,8 @@ def main():
                     break  # Solo tomar la primera que coincida
     
     if not config_dirs:
-        print(f"❌ No se encontraron las configuraciones {target_configs} en {base_dir}")
-        print(f"📂 Contenido del directorio:")
+        print(f"No se encontraron las configuraciones {target_configs} en {base_dir}")
+        print(f"Contenido del directorio:")
         if base_dir.exists():
             for item in base_dir.iterdir():
                 if item.is_dir() and item.name.startswith("config_"):
@@ -170,44 +170,44 @@ def main():
             print(f"   El directorio {base_dir} no existe")
         return
     
-    print(f"📁 Encontradas {len(config_dirs)} de las configuraciones solicitadas {target_configs}:")
+    print(f"Encontradas {len(config_dirs)} de las configuraciones solicitadas {target_configs}:")
     for config_dir in sorted(config_dirs):
         print(f"   • {config_dir.name}")
     
     # Cargar datos
-    print(f"\n📊 Cargando datos (máximo 1M timesteps)...")
+    print(f"\nCargando datos (máximo 1M timesteps)...")
     losses_data = load_losses_data(sorted(config_dirs), max_timesteps=1_000_000)
     
     if not losses_data:
-        print("❌ No se pudieron cargar datos de ninguna configuración")
+        print("No se pudieron cargar datos de ninguna configuración")
         return
     
-    print(f"\n✅ Datos cargados para {len(losses_data)} configuraciones")
+    print(f"\nDatos cargados para {len(losses_data)} configuraciones")
     
     # Crear directorio de plots si no existe
     plots_dir = Path(".")
     plots_dir.mkdir(exist_ok=True)
     
     # Gráfico de comparación general
-    print("\n📈 Generando gráfico de comparación general...")
+    print("\nGenerando gráfico de comparación general...")
     plt1 = plot_entropy_comparison(losses_data)
     
     # Guardar gráfico
     output_file1 = plots_dir / "entropy_comparison_all_configs.png"
     plt1.savefig(output_file1, dpi=300, bbox_inches='tight')
-    print(f"✅ Guardado: {output_file1}")
+    print(f"Guardado: {output_file1}")
     
     # Gráfico de subplots individuales
-    print("\n📈 Generando gráficos individuales...")
+    print("\nGenerando gráficos individuales...")
     fig2 = plot_entropy_subplots(losses_data)
     
     # Guardar gráfico
     output_file2 = plots_dir / "entropy_individual_configs.png"
     fig2.savefig(output_file2, dpi=300, bbox_inches='tight')
-    print(f"✅ Guardado: {output_file2}")
+    print(f"Guardado: {output_file2}")
     
     # Mostrar estadísticas básicas
-    print(f"\n📊 Estadísticas de entropía:")
+    print(f"\nEstadísticas de entropía:")
     print("-" * 60)
     for config_name, df in losses_data.items():
         config_id = config_name.split('_')[1] if 'config_' in config_name else config_name
@@ -221,7 +221,7 @@ def main():
               f"Max={entropy_max:6.3f} | "
               f"Min={entropy_min:6.3f}")
     
-    print(f"\n🎯 Análisis completado. Archivos guardados en: {plots_dir.absolute()}")
+    print(f"\nAnálisis completado. Archivos guardados en: {plots_dir.absolute()}")
     
     # Mostrar gráficos (opcional)
     try:
